@@ -10,11 +10,11 @@ internal sealed class AutomationEntity
     public int IntervalSeconds { get; set; }
     public int Priority { get; set; }
     public string DefinitionJson { get; set; } = "{}";
-    public DateTimeOffset? LastRunAt { get; set; }
-    public DateTimeOffset NextRunAt { get; set; }
+    public DateTime? LastRunAt { get; set; }
+    public DateTime NextRunAt { get; set; }
     public string? LastError { get; set; }
-    public DateTimeOffset CreatedAt { get; set; }
-    public DateTimeOffset UpdatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
 }
 
 internal sealed class OccurrenceEntity
@@ -23,9 +23,9 @@ internal sealed class OccurrenceEntity
     public Guid AutomationId { get; set; }
     public string RecordKey { get; set; } = string.Empty;
     public OccurrenceStatus Status { get; set; }
-    public DateTimeOffset OpenedAt { get; set; }
-    public DateTimeOffset LastEvaluatedAt { get; set; }
-    public DateTimeOffset? ResolvedAt { get; set; }
+    public DateTime OpenedAt { get; set; }
+    public DateTime LastEvaluatedAt { get; set; }
+    public DateTime? ResolvedAt { get; set; }
     public string SnapshotJson { get; set; } = "{}";
     public string Fingerprint { get; set; } = string.Empty;
 }
@@ -45,9 +45,9 @@ internal sealed class DeliveryEntity
     public int ExecutionNumber { get; set; }
     public DeliveryStatus Status { get; set; }
     public int AttemptCount { get; set; }
-    public DateTimeOffset CreatedAt { get; set; }
-    public DateTimeOffset DueAt { get; set; }
-    public DateTimeOffset? SentAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime DueAt { get; set; }
+    public DateTime? SentAt { get; set; }
     public string? ExternalMessageId { get; set; }
     public string? LastError { get; set; }
     public string FieldsJson { get; set; } = "{}";
@@ -60,6 +60,6 @@ internal sealed class ChannelConfigurationEntity
     public ChannelType Type { get; set; }
     public bool Enabled { get; set; }
     public string SettingsJson { get; set; } = "{}";
-    public DateTimeOffset CreatedAt { get; set; }
-    public DateTimeOffset UpdatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
 }

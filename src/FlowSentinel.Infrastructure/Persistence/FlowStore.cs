@@ -8,6 +8,8 @@ namespace FlowSentinel.Infrastructure.Persistence;
 
 internal sealed class FlowStore : IFlowStore
 {
+    private const int CurrentStorageVersion = 2;
+
     public static readonly Guid LocalChannelId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
     private readonly IDbContextFactory<FlowSentinelDbContext> _factory;
@@ -43,6 +45,7 @@ internal sealed class FlowStore : IFlowStore
             await context.Database.EnsureCreatedAsync(cancellationToken);
             await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;", cancellationToken);
             await context.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000;", cancellationToken);
+            await NormalizeStoredDateTimesAsync(context, cancellationToken);
             await SeedAsync(context, cancellationToken);
             _initialized = true;
         }
@@ -56,21 +59,13 @@ internal sealed class FlowStore : IFlowStore
     {
         await InitializeAsync(cancellationToken);
         await using var context = await _factory.CreateDbContextAsync(cancellationToken);
-        return await context.Automations
+        var entities = await context.Automations
             .AsNoTracking()
             .OrderBy(x => x.Priority)
             .ThenBy(x => x.Name)
-            .Select(x => new AutomationStoreItem
-            {
-                Id = x.Id,
-                Name = x.Name,
-                Enabled = x.Enabled,
-                IntervalSeconds = x.IntervalSeconds,
-                LastRunAt = x.LastRunAt,
-                NextRunAt = x.NextRunAt,
-                LastError = x.LastError
-            })
             .ToArrayAsync(cancellationToken);
+
+        return entities.Select(Map).ToArray();
     }
 
     public async Task<IReadOnlyCollection<AutomationStoreItem>> GetDueAutomationsAsync(
@@ -79,22 +74,15 @@ internal sealed class FlowStore : IFlowStore
     {
         await InitializeAsync(cancellationToken);
         await using var context = await _factory.CreateDbContextAsync(cancellationToken);
-        return await context.Automations
+        var nowUtc = now.UtcDateTime;
+        var entities = await context.Automations
             .AsNoTracking()
-            .Where(x => x.Enabled && x.NextRunAt <= now)
+            .Where(x => x.Enabled && x.NextRunAt <= nowUtc)
             .OrderBy(x => x.Priority)
             .ThenBy(x => x.NextRunAt)
-            .Select(x => new AutomationStoreItem
-            {
-                Id = x.Id,
-                Name = x.Name,
-                Enabled = x.Enabled,
-                IntervalSeconds = x.IntervalSeconds,
-                LastRunAt = x.LastRunAt,
-                NextRunAt = x.NextRunAt,
-                LastError = x.LastError
-            })
             .ToArrayAsync(cancellationToken);
+
+        return entities.Select(Map).ToArray();
     }
 
     public async Task<AutomationDefinition?> GetAutomationDefinitionAsync(
@@ -122,7 +110,7 @@ internal sealed class FlowStore : IFlowStore
         await InitializeAsync(cancellationToken);
         await using var context = await _factory.CreateDbContextAsync(cancellationToken);
         var entity = await context.Automations.SingleOrDefaultAsync(x => x.Id == definition.Id, cancellationToken);
-        var now = DateTimeOffset.Now;
+        var now = DateTime.UtcNow;
         var json = JsonSerializer.Serialize(definition, FlowJson.Options);
 
         if (entity is null)
@@ -184,10 +172,10 @@ internal sealed class FlowStore : IFlowStore
             return;
         }
 
-        entity.LastRunAt = DateTimeOffset.Now;
-        entity.NextRunAt = nextRunAt;
+        entity.LastRunAt = DateTime.UtcNow;
+        entity.NextRunAt = nextRunAt.UtcDateTime;
         entity.LastError = Truncate(error, 4000);
-        entity.UpdatedAt = DateTimeOffset.Now;
+        entity.UpdatedAt = DateTime.UtcNow;
         await context.SaveChangesAsync(cancellationToken);
     }
 
@@ -244,8 +232,8 @@ internal sealed class FlowStore : IFlowStore
         await using var context = await _factory.CreateDbContextAsync(cancellationToken);
         var entity = await context.Occurrences.SingleAsync(x => x.Id == occurrence.Id, cancellationToken);
         entity.Status = occurrence.Status;
-        entity.LastEvaluatedAt = occurrence.LastEvaluatedAt;
-        entity.ResolvedAt = occurrence.ResolvedAt;
+        entity.LastEvaluatedAt = occurrence.LastEvaluatedAt.UtcDateTime;
+        entity.ResolvedAt = ToUtcDateTime(occurrence.ResolvedAt);
         entity.SnapshotJson = JsonSerializer.Serialize(occurrence.Snapshot, FlowJson.Options);
         entity.Fingerprint = occurrence.Fingerprint;
         await context.SaveChangesAsync(cancellationToken);
@@ -261,12 +249,17 @@ internal sealed class FlowStore : IFlowStore
         var query = context.Deliveries.AsNoTracking()
             .Where(x => x.OccurrenceId == occurrenceId && x.ActionId == actionId);
 
-        var executionCount = await query.Select(x => (int?)x.ExecutionNumber).MaxAsync(cancellationToken) ?? 0;
-        var lastScheduled = await query.Select(x => (DateTimeOffset?)x.CreatedAt).MaxAsync(cancellationToken);
+        var executionCount = await query
+            .Select(x => (int?)x.ExecutionNumber)
+            .MaxAsync(cancellationToken) ?? 0;
+        var lastScheduledUtc = await query
+            .Select(x => (DateTime?)x.CreatedAt)
+            .MaxAsync(cancellationToken);
+
         return new ActionScheduleState
         {
             ExecutionCount = executionCount,
-            LastScheduledAt = lastScheduled
+            LastScheduledAt = ToDateTimeOffset(lastScheduledUtc)
         };
     }
 
@@ -324,7 +317,7 @@ internal sealed class FlowStore : IFlowStore
             await using var context = await _factory.CreateDbContextAsync(cancellationToken);
             var entities = await context.Deliveries
                 .Where(x => (x.Status == DeliveryStatus.Pending || x.Status == DeliveryStatus.RetryScheduled) &&
-                            x.DueAt <= now)
+                            x.DueAt <= now.UtcDateTime)
                 .OrderBy(x => x.DueAt)
                 .Take(take)
                 .ToArrayAsync(cancellationToken);
@@ -363,12 +356,12 @@ internal sealed class FlowStore : IFlowStore
         if (result.Success)
         {
             entity.Status = DeliveryStatus.Sent;
-            entity.SentAt = DateTimeOffset.Now;
+            entity.SentAt = DateTime.UtcNow;
         }
         else if (result.IsTransient && nextAttemptAt.HasValue)
         {
             entity.Status = DeliveryStatus.RetryScheduled;
-            entity.DueAt = nextAttemptAt.Value;
+            entity.DueAt = nextAttemptAt.Value.UtcDateTime;
         }
         else
         {
@@ -415,7 +408,7 @@ internal sealed class FlowStore : IFlowStore
         await using var context = await _factory.CreateDbContextAsync(cancellationToken);
         var entity = await context.ChannelConfigurations
             .SingleOrDefaultAsync(x => x.Id == configuration.Id, cancellationToken);
-        var now = DateTimeOffset.Now;
+        var now = DateTime.UtcNow;
         if (entity is null)
         {
             entity = new ChannelConfigurationEntity
@@ -455,6 +448,11 @@ internal sealed class FlowStore : IFlowStore
     {
         await InitializeAsync(cancellationToken);
         await using var context = await _factory.CreateDbContextAsync(cancellationToken);
+        var lastExecutionUtc = await context.Automations
+            .AsNoTracking()
+            .Select(x => x.LastRunAt)
+            .MaxAsync(cancellationToken);
+
         return new DashboardSnapshot
         {
             EnabledAutomations = await context.Automations.CountAsync(x => x.Enabled, cancellationToken),
@@ -465,15 +463,108 @@ internal sealed class FlowStore : IFlowStore
                 x => x.Status == DeliveryStatus.Pending || x.Status == DeliveryStatus.RetryScheduled || x.Status == DeliveryStatus.Processing,
                 cancellationToken),
             FailedDeliveries = await context.Deliveries.CountAsync(x => x.Status == DeliveryStatus.Failed, cancellationToken),
-            LastExecutionAt = await context.Automations.Select(x => x.LastRunAt).MaxAsync(cancellationToken)
+            LastExecutionAt = ToDateTimeOffset(lastExecutionUtc)
         };
+    }
+
+    private async Task NormalizeStoredDateTimesAsync(
+        FlowSentinelDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var connection = context.Database.GetDbConnection();
+        var closeConnection = connection.State != System.Data.ConnectionState.Open;
+
+        if (closeConnection)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA user_version;";
+            var currentVersion = Convert.ToInt32(
+                await command.ExecuteScalarAsync(cancellationToken));
+
+            if (currentVersion >= CurrentStorageVersion)
+            {
+                return;
+            }
+
+            var automations = await context.Automations.ToArrayAsync(cancellationToken);
+            foreach (var entity in automations)
+            {
+                entity.LastRunAt = NormalizeUtc(entity.LastRunAt);
+                entity.NextRunAt = NormalizeUtc(entity.NextRunAt);
+                entity.CreatedAt = NormalizeUtc(entity.CreatedAt);
+                entity.UpdatedAt = NormalizeUtc(entity.UpdatedAt);
+
+                context.Entry(entity).Property(x => x.LastRunAt).IsModified = true;
+                context.Entry(entity).Property(x => x.NextRunAt).IsModified = true;
+                context.Entry(entity).Property(x => x.CreatedAt).IsModified = true;
+                context.Entry(entity).Property(x => x.UpdatedAt).IsModified = true;
+            }
+
+            var occurrences = await context.Occurrences.ToArrayAsync(cancellationToken);
+            foreach (var entity in occurrences)
+            {
+                entity.OpenedAt = NormalizeUtc(entity.OpenedAt);
+                entity.LastEvaluatedAt = NormalizeUtc(entity.LastEvaluatedAt);
+                entity.ResolvedAt = NormalizeUtc(entity.ResolvedAt);
+
+                context.Entry(entity).Property(x => x.OpenedAt).IsModified = true;
+                context.Entry(entity).Property(x => x.LastEvaluatedAt).IsModified = true;
+                context.Entry(entity).Property(x => x.ResolvedAt).IsModified = true;
+            }
+
+            var deliveries = await context.Deliveries.ToArrayAsync(cancellationToken);
+            foreach (var entity in deliveries)
+            {
+                entity.CreatedAt = NormalizeUtc(entity.CreatedAt);
+                entity.DueAt = NormalizeUtc(entity.DueAt);
+                entity.SentAt = NormalizeUtc(entity.SentAt);
+
+                context.Entry(entity).Property(x => x.CreatedAt).IsModified = true;
+                context.Entry(entity).Property(x => x.DueAt).IsModified = true;
+                context.Entry(entity).Property(x => x.SentAt).IsModified = true;
+            }
+
+            var channels = await context.ChannelConfigurations.ToArrayAsync(cancellationToken);
+            foreach (var entity in channels)
+            {
+                entity.CreatedAt = NormalizeUtc(entity.CreatedAt);
+                entity.UpdatedAt = NormalizeUtc(entity.UpdatedAt);
+
+                context.Entry(entity).Property(x => x.CreatedAt).IsModified = true;
+                context.Entry(entity).Property(x => x.UpdatedAt).IsModified = true;
+            }
+
+            if (context.ChangeTracker.HasChanges())
+            {
+                await context.SaveChangesAsync(cancellationToken);
+            }
+
+            command.CommandText = $"PRAGMA user_version = {CurrentStorageVersion};";
+            await command.ExecuteNonQueryAsync(cancellationToken);
+
+            _logger.LogInformation(
+                "Persistência SQLite atualizada para a versão {StorageVersion}, com datas normalizadas em UTC.",
+                CurrentStorageVersion);
+        }
+        finally
+        {
+            if (closeConnection)
+            {
+                await connection.CloseAsync();
+            }
+        }
     }
 
     private async Task SeedAsync(FlowSentinelDbContext context, CancellationToken cancellationToken)
     {
         if (!await context.ChannelConfigurations.AnyAsync(cancellationToken))
         {
-            var now = DateTimeOffset.Now;
+            var now = DateTime.UtcNow;
             context.ChannelConfigurations.Add(new ChannelConfigurationEntity
             {
                 Id = LocalChannelId,
@@ -498,7 +589,7 @@ internal sealed class FlowStore : IFlowStore
                     if (definition is not null)
                     {
                         definition.Validate();
-                        var now = DateTimeOffset.Now;
+                        var now = DateTime.UtcNow;
                         context.Automations.Add(new AutomationEntity
                         {
                             Id = definition.Id,
@@ -529,9 +620,9 @@ internal sealed class FlowStore : IFlowStore
         AutomationId = entity.AutomationId,
         RecordKey = entity.RecordKey,
         Status = entity.Status,
-        OpenedAt = entity.OpenedAt,
-        LastEvaluatedAt = entity.LastEvaluatedAt,
-        ResolvedAt = entity.ResolvedAt,
+        OpenedAt = ToDateTimeOffset(entity.OpenedAt),
+        LastEvaluatedAt = ToDateTimeOffset(entity.LastEvaluatedAt),
+        ResolvedAt = ToDateTimeOffset(entity.ResolvedAt),
         Snapshot = JsonSerializer.Deserialize<Dictionary<string, string?>>(entity.SnapshotJson, FlowJson.Options)
                    ?? new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase),
         Fingerprint = entity.Fingerprint
@@ -543,9 +634,9 @@ internal sealed class FlowStore : IFlowStore
         AutomationId = item.AutomationId,
         RecordKey = item.RecordKey,
         Status = item.Status,
-        OpenedAt = item.OpenedAt,
-        LastEvaluatedAt = item.LastEvaluatedAt,
-        ResolvedAt = item.ResolvedAt,
+        OpenedAt = item.OpenedAt.UtcDateTime,
+        LastEvaluatedAt = item.LastEvaluatedAt.UtcDateTime,
+        ResolvedAt = ToUtcDateTime(item.ResolvedAt),
         SnapshotJson = JsonSerializer.Serialize(item.Snapshot, FlowJson.Options),
         Fingerprint = item.Fingerprint
     };
@@ -563,11 +654,11 @@ internal sealed class FlowStore : IFlowStore
         Message = entity.Message,
         IdempotencyKey = entity.IdempotencyKey,
         ExecutionNumber = entity.ExecutionNumber,
-        CreatedAt = entity.CreatedAt,
+        CreatedAt = ToDateTimeOffset(entity.CreatedAt),
         Status = entity.Status,
         AttemptCount = entity.AttemptCount,
-        DueAt = entity.DueAt,
-        SentAt = entity.SentAt,
+        DueAt = ToDateTimeOffset(entity.DueAt),
+        SentAt = ToDateTimeOffset(entity.SentAt),
         ExternalMessageId = entity.ExternalMessageId,
         LastError = entity.LastError,
         Fields = JsonSerializer.Deserialize<Dictionary<string, string?>>(entity.FieldsJson, FlowJson.Options)
@@ -589,13 +680,48 @@ internal sealed class FlowStore : IFlowStore
         ExecutionNumber = item.ExecutionNumber,
         Status = item.Status,
         AttemptCount = item.AttemptCount,
-        CreatedAt = item.CreatedAt,
-        DueAt = item.DueAt,
-        SentAt = item.SentAt,
+        CreatedAt = item.CreatedAt.UtcDateTime,
+        DueAt = item.DueAt.UtcDateTime,
+        SentAt = ToUtcDateTime(item.SentAt),
         ExternalMessageId = item.ExternalMessageId,
         LastError = item.LastError,
         FieldsJson = JsonSerializer.Serialize(item.Fields, FlowJson.Options)
     };
+
+    private static AutomationStoreItem Map(AutomationEntity entity) => new()
+    {
+        Id = entity.Id,
+        Name = entity.Name,
+        Enabled = entity.Enabled,
+        IntervalSeconds = entity.IntervalSeconds,
+        LastRunAt = ToDateTimeOffset(entity.LastRunAt),
+        NextRunAt = ToDateTimeOffset(entity.NextRunAt),
+        LastError = entity.LastError
+    };
+
+    private static DateTime NormalizeUtc(DateTime value) =>
+        value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
+
+    private static DateTime? NormalizeUtc(DateTime? value) =>
+        value.HasValue
+            ? NormalizeUtc(value.Value)
+            : null;
+
+    private static DateTime? ToUtcDateTime(DateTimeOffset? value) =>
+        value?.UtcDateTime;
+
+    private static DateTimeOffset ToDateTimeOffset(DateTime value) =>
+        new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
+
+    private static DateTimeOffset? ToDateTimeOffset(DateTime? value) =>
+        value.HasValue
+            ? ToDateTimeOffset(value.Value)
+            : null;
 
     private static ChannelConfiguration Map(ChannelConfigurationEntity entity) => new()
     {

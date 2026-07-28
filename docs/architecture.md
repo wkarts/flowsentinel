@@ -65,3 +65,9 @@ Cada entrega possui uma chave SHA-256 formada por ocorrência, ação, canal, de
 ## Extensibilidade
 
 Novas fontes implementam `IDataSourceReader`. Novos canais implementam `INotificationChannel`. O motor não depende da tecnologia de origem ou destino.
+
+## Datas e compatibilidade com SQLite
+
+Os contratos do domínio continuam utilizando `DateTimeOffset`, preservando o instante e o fuso na comunicação entre os módulos. Na persistência SQLite, os valores são convertidos para `DateTime` em UTC, pois o provedor do Entity Framework não suporta comparação, ordenação e agregações de `DateTimeOffset` no servidor.
+
+A inicialização controla a revisão do armazenamento por `PRAGMA user_version`. Bancos criados por versões anteriores têm seus campos temporais normalizados em UTC de forma transacional e idempotente, sem exclusão das automações, ocorrências, canais ou entregas existentes.

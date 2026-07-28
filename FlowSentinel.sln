@@ -16,6 +16,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlowSentinel.Domain.Tests",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlowSentinel.Application.Tests", "tests\FlowSentinel.Application.Tests\FlowSentinel.Application.Tests.csproj", "{5E7FBAD0-C45F-46B5-8B19-EB3E35AF42B9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlowSentinel.Infrastructure.Tests", "tests\FlowSentinel.Infrastructure.Tests\FlowSentinel.Infrastructure.Tests.csproj", "{BD745835-F4EB-4ECF-9D62-CB804B2311A4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -50,5 +52,9 @@ Global
 		{5E7FBAD0-C45F-46B5-8B19-EB3E35AF42B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5E7FBAD0-C45F-46B5-8B19-EB3E35AF42B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5E7FBAD0-C45F-46B5-8B19-EB3E35AF42B9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BD745835-F4EB-4ECF-9D62-CB804B2311A4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD745835-F4EB-4ECF-9D62-CB804B2311A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BD745835-F4EB-4ECF-9D62-CB804B2311A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD745835-F4EB-4ECF-9D62-CB804B2311A4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
