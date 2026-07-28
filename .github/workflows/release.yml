@@ -257,6 +257,12 @@ jobs:
 
       - name: Compilar instalador
         shell: pwsh
+        env:
+          APP_VERSION: ${{ needs.metadata.outputs.version }}
+          RUNTIME_ID: ${{ matrix.rid }}
+          ARCHITECTURES_ALLOWED: ${{ matrix.allowed }}
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
 
@@ -269,22 +275,36 @@ jobs:
           }
 
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          $scriptPath = (Resolve-Path 'installer/FlowSentinel.Desktop.iss').Path
+          $sourceDir = (Resolve-Path "artifacts/publish/$env:RUNTIME_ID/desktop").Path
+          $outputFileName = "FlowSentinel-Setup-$env:APP_VERSION-$env:RUNTIME_ID"
+
+          # ISCC /D emula #define. As aspas podem delimitar o argumento no
+          # shell, mas não devem fazer parte do valor entregue à macro ISPP.
           $arguments = @(
-            'installer/FlowSentinel.Desktop.iss',
-            '/DAppVersion=${{ needs.metadata.outputs.version }}',
-            '/DSourceDir="..\artifacts\publish\${{ matrix.rid }}\desktop"',
-            '/DArchitecturesAllowed="${{ matrix.allowed }}"',
-            '/F"FlowSentinel-Setup-${{ needs.metadata.outputs.version }}-${{ matrix.rid }}"'
+            $scriptPath,
+            "/DAppVersion=$env:APP_VERSION",
+            "/DSourceDir=$sourceDir",
+            "/DArchitecturesAllowed=$env:ARCHITECTURES_ALLOWED",
+            "/F$outputFileName"
           )
 
-          if ('${{ matrix.rid }}' -eq 'win-x64') {
-            $arguments += '/DArchitecturesInstallIn64BitMode="x64compatible"'
+          if ($env:RUNTIME_ID -eq 'win-x64') {
+            $arguments += '/DArchitecturesInstallIn64BitMode=x64compatible'
           }
+
+          Write-Host 'Argumentos enviados ao ISCC:'
+          $arguments | ForEach-Object { Write-Host "  $_" }
 
           & $iscc @arguments
 
           if ($LASTEXITCODE -ne 0) {
-            throw 'Falha ao compilar o instalador.'
+            throw "Falha ao compilar o instalador $env:RUNTIME_ID. Código: $LASTEXITCODE"
+          }
+
+          $installerPath = "artifacts/installer/$outputFileName.exe"
+          if (-not (Test-Path $installerPath)) {
+            throw "O Inno Setup terminou sem gerar o arquivo esperado: $installerPath"
           }
 
           if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_BASE64)) {
@@ -301,9 +321,6 @@ jobs:
                 -CertificatePassword $env:WINDOWS_CERTIFICATE_PASSWORD
             }
           }
-        env:
-          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
 
       - uses: actions/upload-artifact@v7
         with:
