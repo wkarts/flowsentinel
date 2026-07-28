@@ -70,11 +70,11 @@ internal sealed class AutomationWizardForm : Form
         _priority.Minimum = 0;
         _priority.Maximum = 100000;
         _missingRecord.DropDownStyle = ComboBoxStyle.DropDownList;
-        _missingRecord.DataSource = new[]
+        VisualEditorSupport.SetDisplayItems(_missingRecord, new[]
         {
             new DisplayItem<MissingRecordBehavior>(MissingRecordBehavior.Ignore, "Ignorar o desaparecimento"),
             new DisplayItem<MissingRecordBehavior>(MissingRecordBehavior.Resolve, "Concluir a ocorrência")
-        };
+        });
         _resolvePersistence.Text = "Concluir quando os critérios de permanência deixarem de ser atendidos";
         _resolvePersistence.AutoSize = true;
 

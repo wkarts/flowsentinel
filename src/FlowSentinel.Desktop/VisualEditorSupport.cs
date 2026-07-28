@@ -87,11 +87,28 @@ internal static class VisualEditorSupport
         Margin = new Padding(3, 8, 3, 3)
     };
 
+    internal static void SetDisplayItems<T>(
+        ComboBox comboBox,
+        IEnumerable<DisplayItem<T>> items)
+    {
+        ArgumentNullException.ThrowIfNull(comboBox);
+        ArgumentNullException.ThrowIfNull(items);
+
+        var materialized = items.ToArray();
+
+        // ComboBox com DataSource pode manter Items.Count = 0 enquanto ainda não
+        // possui BindingContext. Os editores visuais não precisam de binding para
+        // estas listas fixas, portanto os itens são materializados diretamente.
+        comboBox.DataSource = null;
+        comboBox.Items.Clear();
+        comboBox.Items.AddRange(materialized.Cast<object>().ToArray());
+    }
+
     internal static bool SelectDisplayItem<T>(ComboBox comboBox, T value, T fallback)
     {
         ArgumentNullException.ThrowIfNull(comboBox);
 
-        var items = GetDisplayItems<T>(comboBox);
+        var items = MaterializeDisplayItems<T>(comboBox);
         var selected = ResolveDisplayItem(items, value, fallback);
 
         if (selected is null)
@@ -100,16 +117,17 @@ internal static class VisualEditorSupport
             return false;
         }
 
-        var selectedIndex = items.IndexOf(selected);
-        if (selectedIndex >= 0)
-        {
-            comboBox.SelectedIndex = selectedIndex;
-        }
-        else
+        // O índice precisa ser obtido da coleção real do controle. A versão anterior
+        // calculava o índice no DataSource e o aplicava quando Items.Count ainda era
+        // zero, provocando ArgumentOutOfRangeException durante a abertura do modal.
+        var selectedIndex = comboBox.Items.IndexOf(selected);
+        if (selectedIndex < 0 || selectedIndex >= comboBox.Items.Count)
         {
             comboBox.SelectedItem = selected;
+            return comboBox.SelectedIndex >= 0;
         }
 
+        comboBox.SelectedIndex = selectedIndex;
         return true;
     }
 
@@ -127,12 +145,24 @@ internal static class VisualEditorSupport
                ?? materialized.FirstOrDefault();
     }
 
-    private static List<DisplayItem<T>> GetDisplayItems<T>(ComboBox comboBox)
+    private static List<DisplayItem<T>> MaterializeDisplayItems<T>(ComboBox comboBox)
     {
-        if (comboBox.DataSource is IEnumerable<DisplayItem<T>> dataSource)
+        var controlItems = comboBox.Items.Cast<object>()
+            .OfType<DisplayItem<T>>()
+            .ToList();
+
+        if (controlItems.Count > 0)
         {
-            return dataSource.ToList();
+            return controlItems;
         }
+
+        if (comboBox.DataSource is not IEnumerable<DisplayItem<T>> dataSource)
+        {
+            return controlItems;
+        }
+
+        var materialized = dataSource.ToArray();
+        SetDisplayItems(comboBox, materialized);
 
         return comboBox.Items.Cast<object>()
             .OfType<DisplayItem<T>>()

@@ -58,9 +58,10 @@ internal sealed class ChannelEditorForm : Form
     private void ConfigureControls()
     {
         _type.DropDownStyle = ComboBoxStyle.DropDownList;
-        _type.DataSource = Enum.GetValues<ChannelType>()
-            .Select(x => new DisplayItem<ChannelType>(x, VisualEditorSupport.ChannelTypeText(x)))
-            .ToList();
+        VisualEditorSupport.SetDisplayItems(
+            _type,
+            Enum.GetValues<ChannelType>()
+                .Select(x => new DisplayItem<ChannelType>(x, VisualEditorSupport.ChannelTypeText(x))));
         _type.SelectedIndexChanged += (_, _) => RebuildSettings();
         _enabled.Text = "Canal habilitado";
         _enabled.AutoSize = true;

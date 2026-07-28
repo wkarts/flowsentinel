@@ -25,6 +25,15 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 - Conectores adicionais por plugins externos.
 - Administração centralizada opcional.
 
+## [0.2.2] - 2026-07-28
+
+### Corrigido
+
+- Corrigida a exceção `ArgumentOutOfRangeException` ao abrir os CRUDs visuais quando o `ComboBox` possuía `DataSource`, mas sua coleção `Items` ainda não havia sido materializada pelo WinForms.
+- As listas fixas de tipos, fontes, provedores, ações e políticas passaram a ser carregadas diretamente em `ComboBox.Items`, sem dependência de `BindingContext`.
+- A seleção visual agora calcula e aplica o índice somente sobre a coleção real do controle, com validação dos limites antes de alterar `SelectedIndex`.
+- Adicionados testes de regressão para ComboBox com DataSource não inicializado e seleção imediata de itens materializados.
+
 ## [0.2.1] - 2026-07-28
 
 ### Corrigido

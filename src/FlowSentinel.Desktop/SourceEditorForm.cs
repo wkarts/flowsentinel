@@ -74,9 +74,10 @@ internal sealed class SourceEditorForm : Form
     private void ConfigureControls()
     {
         _type.DropDownStyle = ComboBoxStyle.DropDownList;
-        _type.DataSource = Enum.GetValues<SourceType>()
-            .Select(x => new DisplayItem<SourceType>(x, VisualEditorSupport.SourceTypeText(x)))
-            .ToList();
+        VisualEditorSupport.SetDisplayItems(
+            _type,
+            Enum.GetValues<SourceType>()
+                .Select(x => new DisplayItem<SourceType>(x, VisualEditorSupport.SourceTypeText(x))));
         _type.SelectedIndexChanged += (_, _) => RebuildConfigurationPanel();
 
         _primary.Text = "Fonte principal";
@@ -110,16 +111,18 @@ internal sealed class SourceEditorForm : Form
         _keyValueSeparator.Text = "=";
 
         _provider.DropDownStyle = ComboBoxStyle.DropDownList;
-        _provider.DataSource = Enum.GetValues<DatabaseProvider>()
-            .Select(x => new DisplayItem<DatabaseProvider>(x, x switch
-            {
-                DatabaseProvider.Sqlite => "SQLite",
-                DatabaseProvider.SqlServer => "SQL Server",
-                DatabaseProvider.MySql => "MySQL / MariaDB",
-                DatabaseProvider.PostgreSql => "PostgreSQL",
-                DatabaseProvider.Firebird => "Firebird",
-                _ => x.ToString()
-            })).ToList();
+        VisualEditorSupport.SetDisplayItems(
+            _provider,
+            Enum.GetValues<DatabaseProvider>()
+                .Select(x => new DisplayItem<DatabaseProvider>(x, x switch
+                {
+                    DatabaseProvider.Sqlite => "SQLite",
+                    DatabaseProvider.SqlServer => "SQL Server",
+                    DatabaseProvider.MySql => "MySQL / MariaDB",
+                    DatabaseProvider.PostgreSql => "PostgreSQL",
+                    DatabaseProvider.Firebird => "Firebird",
+                    _ => x.ToString()
+                })));
         _provider.SelectedIndexChanged += (_, _) => RebuildConfigurationPanel();
         _port.Minimum = 0;
         _port.Maximum = 65535;

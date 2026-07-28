@@ -51,12 +51,12 @@ internal sealed class ActionEditorForm : Form
         _enabled.AutoSize = true;
 
         _trigger.DropDownStyle = ComboBoxStyle.DropDownList;
-        _trigger.DataSource = new[]
+        VisualEditorSupport.SetDisplayItems(_trigger, new[]
         {
             new DisplayItem<ActionTrigger>(ActionTrigger.OnOpen, "Ao abrir a ocorrência"),
             new DisplayItem<ActionTrigger>(ActionTrigger.WhileActive, "Enquanto permanecer ativa"),
             new DisplayItem<ActionTrigger>(ActionTrigger.OnResolved, "Ao concluir a ocorrência")
-        };
+        });
 
         ConfigurePeriod(_delayValue, _delayUnit);
         ConfigurePeriod(_repeatValue, _repeatUnit);
@@ -68,18 +68,18 @@ internal sealed class ActionEditorForm : Form
         _maxExecutions.Value = 1;
 
         _channelStrategy.DropDownStyle = ComboBoxStyle.DropDownList;
-        _channelStrategy.DataSource = new[]
+        VisualEditorSupport.SetDisplayItems(_channelStrategy, new[]
         {
             new DisplayItem<ChannelExecutionStrategy>(ChannelExecutionStrategy.All, "Enviar por todos os canais"),
             new DisplayItem<ChannelExecutionStrategy>(ChannelExecutionStrategy.AtLeastOne, "Ao menos um canal precisa enviar"),
             new DisplayItem<ChannelExecutionStrategy>(ChannelExecutionStrategy.FirstSuccessful, "Parar no primeiro envio bem-sucedido")
-        };
+        });
         _successPolicy.DropDownStyle = ComboBoxStyle.DropDownList;
-        _successPolicy.DataSource = new[]
+        VisualEditorSupport.SetDisplayItems(_successPolicy, new[]
         {
             new DisplayItem<ActionSuccessPolicy>(ActionSuccessPolicy.AllDeliveries, "Todos os destinatários devem receber"),
             new DisplayItem<ActionSuccessPolicy>(ActionSuccessPolicy.AtLeastOneDelivery, "Ao menos um destinatário deve receber")
-        };
+        });
 
         _channels.CheckOnClick = true;
         _channels.Dock = DockStyle.Fill;
