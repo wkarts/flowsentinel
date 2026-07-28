@@ -16,7 +16,7 @@ internal sealed class MainForm : Form
     private readonly Label _summary = new();
     private readonly ToolStripStatusLabel _status = new("Pronto");
 
-    public bool AllowClose { get; set; }
+    internal bool AllowClose { get; set; }
 
     public MainForm(
         IFlowStore store,

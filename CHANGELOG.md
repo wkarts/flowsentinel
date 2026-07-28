@@ -5,6 +5,12 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 
 ## [Não publicado]
 
+### Corrigido
+
+- Corrige o erro `WFO1000` do analisador WinForms, restringindo propriedades internas de estado e resultado dos formulários.
+- Remove a referência redundante a `System.Text.Encoding.CodePages` no .NET 10, eliminando o aviso `NU1510`.
+- Atualiza e fixa a família `SQLitePCLRaw` em `2.1.12`, removendo a dependência nativa vulnerável `2.1.11` (`GHSA-2m69-gcr7-jv3q`).
+
 ### Planejado
 
 - Editor visual avançado de grupos lógicos.

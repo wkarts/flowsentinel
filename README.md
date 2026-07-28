@@ -48,7 +48,7 @@ tests/
 Requisitos:
 
 - Windows 10/11 ou Windows Server compatível.
-- SDK .NET 10.0.301 ou patch posterior da mesma feature band.
+- SDK .NET 10.0.300 ou patch posterior da mesma feature band.
 
 ```powershell
 dotnet restore FlowSentinel.sln
@@ -65,7 +65,7 @@ dotnet run --project src/FlowSentinel.Desktop/FlowSentinel.Desktop.csproj
 Na primeira execução é criado o banco em:
 
 ```text
-%LOCALAPPDATA%\FlowSentinel\data\flowsentinel.db
+%LOCALAPPDATA%\WWSoftwares\FlowSentinel\data\flowsentinel.db
 ```
 
 ## Publicação local
@@ -116,8 +116,6 @@ O primeiro deve conter o PFX convertido para Base64.
 
 ## Configuração das automações
 
-A versão 0.1.0 utiliza um editor JSON validado para preservar toda a expressividade do motor sem limitar fontes, grupos lógicos, ações, canais ou destinatários. Um designer visual poderá ser adicionado sobre o mesmo modelo sem alterar o núcleo.
-
 O Desktop permite importar e exportar a definição JSON completa de cada automação. Um exemplo funcional está em:
 
 ```text
@@ -126,29 +124,16 @@ docs/examples/automation-clientes.json
 
 ## Segredos protegidos
 
-Use os botões dos editores de automação e canais para proteger somente o conteúdo do segredo. Os formatos são:
+Use o utilitário da tela de canais ou o comando futuro de administração para armazenar campos sensíveis com DPAPI. Internamente, valores protegidos usam:
 
 ```text
-dpapi-user:<conteudo-base64>
-dpapi-machine:<conteudo-base64>
+dpapi:<conteudo-base64>
 ```
-
-Use `dpapi-user` quando somente o usuário atual executará o Desktop. Use `dpapi-machine` para configurações que também serão lidas pelo Windows Service na mesma máquina.
 
 ## Evolution API
 
 O conector possui perfis V1 e V2 e permite sobrescrever os caminhos HTTP e o formato do payload. Isso evita acoplamento rígido a uma única revisão da Evolution API.
 
-## Desktop e Windows Service
+## Observação operacional
 
-Por padrão, o Desktop usa `%LOCALAPPDATA%\FlowSentinel` e o serviço usa `%PROGRAMDATA%\FlowSentinel`. O diretório pode ser substituído pela variável `FLOWSENTINEL_DATA_ROOT`.
-
-Não execute os dois motores simultaneamente contra o mesmo banco. Use o Desktop como modo operacional ou como administrador de uma cópia parada do serviço. Para credenciais compartilhadas entre contas do Windows, use proteção `dpapi-machine`.
-
-## Documentação adicional
-
-- `docs/architecture.md`
-- `docs/automation-schema.md`
-- `docs/channel-settings.md`
-- `docs/github-flow.md`
-- `docs/release-process.md`
+Não execute o Desktop e o Windows Service ao mesmo tempo usando o mesmo diretório de dados. O projeto possui trava de instância, mas o modo operacional deve ser escolhido por instalação.

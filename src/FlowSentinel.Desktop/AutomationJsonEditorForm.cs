@@ -10,7 +10,7 @@ internal sealed class AutomationJsonEditorForm : Form
     private readonly Label _validation = new();
     private readonly ISecretProtector? _secretProtector;
 
-    public AutomationDefinition? Definition { get; private set; }
+    internal AutomationDefinition? Definition { get; private set; }
 
     public AutomationJsonEditorForm(
         AutomationDefinition definition,

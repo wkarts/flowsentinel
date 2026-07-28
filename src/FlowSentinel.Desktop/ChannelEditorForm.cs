@@ -13,7 +13,7 @@ internal sealed class ChannelEditorForm : Form
     private readonly TextBox _settings = new();
     private readonly Guid _id;
 
-    public ChannelConfiguration? Configuration { get; private set; }
+    internal ChannelConfiguration? Configuration { get; private set; }
 
     public ChannelEditorForm(ChannelConfiguration configuration, ISecretProtector secretProtector)
     {
