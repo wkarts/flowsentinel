@@ -8,15 +8,18 @@ public sealed class AutomationSchedulerWorker : BackgroundService
 {
     private readonly IFlowStore _store;
     private readonly IAutomationExecutor _executor;
+    private readonly IWorkerRuntimeSettings _settings;
     private readonly ILogger<AutomationSchedulerWorker> _logger;
 
     public AutomationSchedulerWorker(
         IFlowStore store,
         IAutomationExecutor executor,
+        IWorkerRuntimeSettings settings,
         ILogger<AutomationSchedulerWorker> logger)
     {
         _store = store;
         _executor = executor;
+        _settings = settings;
         _logger = logger;
     }
 
@@ -24,13 +27,15 @@ public sealed class AutomationSchedulerWorker : BackgroundService
     {
         await _store.InitializeAsync(stoppingToken);
 
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                var due = await _store.GetDueAutomationsAsync(DateTimeOffset.Now, stoppingToken);
-                await Task.WhenAll(due.Select(x => _executor.ExecuteAsync(x.Id, stoppingToken)));
+                if (_settings.AutomationSchedulerEnabled)
+                {
+                    var due = await _store.GetDueAutomationsAsync(DateTimeOffset.Now, stoppingToken);
+                    await Task.WhenAll(due.Select(x => _executor.ExecuteAsync(x.Id, stoppingToken)));
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -40,8 +45,13 @@ public sealed class AutomationSchedulerWorker : BackgroundService
             {
                 _logger.LogError(exception, "Falha no agendador de automações.");
             }
+
+            await DelayAsync(_settings.AutomationSchedulerPollingSeconds, stoppingToken);
         }
     }
+
+    private static Task DelayAsync(int seconds, CancellationToken cancellationToken) =>
+        Task.Delay(TimeSpan.FromSeconds(Math.Clamp(seconds, 1, 3600)), cancellationToken);
 }
 
 public sealed class DeliveryDispatcherWorker : BackgroundService
@@ -56,15 +66,18 @@ public sealed class DeliveryDispatcherWorker : BackgroundService
 
     private readonly IFlowStore _store;
     private readonly IReadOnlyDictionary<ChannelType, INotificationChannel> _channels;
+    private readonly IWorkerRuntimeSettings _settings;
     private readonly ILogger<DeliveryDispatcherWorker> _logger;
 
     public DeliveryDispatcherWorker(
         IFlowStore store,
         IEnumerable<INotificationChannel> channels,
+        IWorkerRuntimeSettings settings,
         ILogger<DeliveryDispatcherWorker> logger)
     {
         _store = store;
         _channels = channels.ToDictionary(x => x.ChannelType);
+        _settings = settings;
         _logger = logger;
     }
 
@@ -72,20 +85,27 @@ public sealed class DeliveryDispatcherWorker : BackgroundService
     {
         await _store.InitializeAsync(stoppingToken);
 
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                var deliveries = await _store.ClaimDueDeliveriesAsync(DateTimeOffset.Now, 50, stoppingToken);
-                await Parallel.ForEachAsync(
-                    deliveries,
-                    new ParallelOptions
-                    {
-                        MaxDegreeOfParallelism = 8,
-                        CancellationToken = stoppingToken
-                    },
-                    DispatchAsync);
+                if (_settings.DeliveryDispatcherEnabled)
+                {
+                    var batchSize = Math.Clamp(_settings.MaxDeliveriesPerCycle, 1, 1000);
+                    var deliveries = await _store.ClaimDueDeliveriesAsync(
+                        DateTimeOffset.Now,
+                        batchSize,
+                        stoppingToken);
+
+                    await Parallel.ForEachAsync(
+                        deliveries,
+                        new ParallelOptions
+                        {
+                            MaxDegreeOfParallelism = Math.Clamp(_settings.MaxParallelDeliveries, 1, 64),
+                            CancellationToken = stoppingToken
+                        },
+                        DispatchAsync);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -95,6 +115,8 @@ public sealed class DeliveryDispatcherWorker : BackgroundService
             {
                 _logger.LogError(exception, "Falha no processador da fila de notificações.");
             }
+
+            await DelayAsync(_settings.DeliveryDispatcherPollingSeconds, stoppingToken);
         }
     }
 
@@ -166,4 +188,7 @@ public sealed class DeliveryDispatcherWorker : BackgroundService
             ? null
             : DateTimeOffset.Now.Add(RetryDelays[index]);
     }
+
+    private static Task DelayAsync(int seconds, CancellationToken cancellationToken) =>
+        Task.Delay(TimeSpan.FromSeconds(Math.Clamp(seconds, 1, 3600)), cancellationToken);
 }

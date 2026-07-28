@@ -71,3 +71,21 @@ Novas fontes implementam `IDataSourceReader`. Novos canais implementam `INotific
 Os contratos do domínio continuam utilizando `DateTimeOffset`, preservando o instante e o fuso na comunicação entre os módulos. Na persistência SQLite, os valores são convertidos para `DateTime` em UTC, pois o provedor do Entity Framework não suporta comparação, ordenação e agregações de `DateTimeOffset` no servidor.
 
 A inicialização controla a revisão do armazenamento por `PRAGMA user_version`. Bancos criados por versões anteriores têm seus campos temporais normalizados em UTC de forma transacional e idempotente, sem exclusão das automações, ocorrências, canais ou entregas existentes.
+
+## Desktop, tray e parâmetros de execução
+
+O Desktop mantém as preferências de experiência em `%LocalAppData%\FlowSentinel\desktop-settings.json`. O mesmo serviço implementa `IWorkerRuntimeSettings`, permitindo que os workers consultem intervalos, limites e flags atualizados durante a execução.
+
+O Windows Service utiliza `JsonFileWorkerRuntimeSettings` sobre `%ProgramData%\FlowSentinel\service-settings.json`. Esse arquivo é atualizado pela tela de configurações do Desktop e relido quando sua data de modificação muda.
+
+A distribuição Desktop inclui o serviço na pasta `service`, mas os processos continuam independentes:
+
+```text
+FlowSentinel.exe
+└── UI, tray e worker do usuário atual
+
+service\FlowSentinel.Service.exe
+└── Worker do Windows Service com dados em ProgramData
+```
+
+A logo da WWSoftware's Sistemas e Tecnologias é um ativo institucional do desenvolvedor e não substitui automaticamente a identidade principal do produto.

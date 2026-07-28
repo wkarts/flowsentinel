@@ -71,7 +71,7 @@ Na primeira execução é criado o banco em:
 ## Publicação local
 
 ```powershell
-./scripts/publish.ps1 -Version 0.2.2
+./scripts/publish.ps1 -Version 0.2.3
 ```
 
 Os arquivos serão gerados em `artifacts/`.
@@ -88,8 +88,8 @@ Os arquivos serão gerados em `artifacts/`.
 3. Crie e envie a tag:
 
 ```powershell
-git tag v0.2.2
-git push origin v0.2.2
+git tag v0.2.3
+git push origin v0.2.3
 ```
 
 O workflow de release irá:
@@ -152,3 +152,28 @@ O conector possui perfis V1 e V2 e permite sobrescrever os caminhos HTTP e o for
 ## Observação operacional
 
 Não execute o Desktop e o Windows Service ao mesmo tempo usando o mesmo diretório de dados. O projeto possui trava de instância, mas o modo operacional deve ser escolhido por instalação.
+## Experiência Desktop, tray e Windows Service
+
+A versão 0.2.3 adiciona uma experiência operacional completa para o Windows:
+
+- splash screen no início manual;
+- inicialização silenciosa no tray ao entrar no Windows;
+- tela **Sobre** com os contatos do desenvolvedor;
+- tela **Configurações** para comportamento ao fechar, notificações, workers, dados e logs;
+- gerenciamento do Windows Service com elevação administrativa somente quando necessária;
+- parâmetros de intervalo, lote e paralelismo atualizados em tempo real;
+- serviço incluído no instalador e dentro do pacote Desktop na pasta `service`.
+
+As preferências do Desktop são gravadas em:
+
+```text
+%LocalAppData%\FlowSentinel\desktop-settings.json
+```
+
+Os parâmetros do serviço são gravados em:
+
+```text
+%ProgramData%\FlowSentinel\service-settings.json
+```
+
+Consulte `docs/desktop-experience.md` para os argumentos de inicialização e o fluxo de administração do serviço.

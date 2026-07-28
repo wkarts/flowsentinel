@@ -28,5 +28,6 @@
   <ItemGroup>
     <None Include="..\..\docs\examples\automation-clientes.json" Link="examples\automation-clientes.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\samples\clientes.csv" Link="samples\clientes.csv" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Assets\WWSoftwaresDeveloperLogo.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -12,7 +12,7 @@ Exemplos:
 
 ```text
 0.1.0
-0.2.2-rc.1
+0.2.3-rc.1
 1.0.0
 ```
 
@@ -21,11 +21,11 @@ Exemplos:
 ```text
 develop
   ↓
-release/0.2.2
+release/0.2.3
   ↓
 main
   ↓
-tag v0.2.2
+tag v0.2.3
   ↓
 GitHub Actions Release
 ```
@@ -33,7 +33,7 @@ GitHub Actions Release
 ## Preparação
 
 ```powershell
-./scripts/bump-version.ps1 -Version 0.2.2
+./scripts/bump-version.ps1 -Version 0.2.3
 ```
 
 Atualize o `CHANGELOG.md`, execute:
@@ -45,8 +45,8 @@ Atualize o `CHANGELOG.md`, execute:
 Depois faça o merge em `main` e publique a tag:
 
 ```powershell
-git tag -a v0.2.2 -m "FlowSentinel v0.2.2"
-git push origin v0.2.2
+git tag -a v0.2.3 -m "FlowSentinel v0.2.3"
+git push origin v0.2.3
 ```
 
 ## Artefatos produzidos
