@@ -468,7 +468,8 @@ internal sealed class ChannelEditorForm : Form
     }
 
     private ChannelType SelectedType() => (_type.SelectedItem as DisplayItem<ChannelType>)?.Value ?? ChannelType.LocalWindows;
-    private void SelectType(ChannelType value) => _type.SelectedItem = _type.Items.Cast<DisplayItem<ChannelType>>().First(x => x.Value == value);
+    private void SelectType(ChannelType value) =>
+        VisualEditorSupport.SelectDisplayItem(_type, value, ChannelType.LocalWindows);
 
     private static string Required(string value, string message)
     {

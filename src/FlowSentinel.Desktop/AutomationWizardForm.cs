@@ -419,7 +419,13 @@ internal sealed class AutomationWizardForm : Form
     {
         var selected = SelectedSource();
         if (selected is null) return;
-        var source = _working.Sources.Single(x => x.Id == selected.Id);
+        var source = _working.Sources.FirstOrDefault(x => x.Id == selected.Id);
+        if (source is null)
+        {
+            MessageBox.Show(this, "A fonte selecionada não está mais disponível. Atualize a lista e tente novamente.", "Fontes", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            RefreshSourcesGrid();
+            return;
+        }
         using var editor = new SourceEditorForm(VisualEditorSupport.Clone(source), _sourceDesigner, _secretProtector);
         if (editor.ShowDialog(this) == DialogResult.OK && editor.Definition is not null)
         {
@@ -437,7 +443,13 @@ internal sealed class AutomationWizardForm : Form
     {
         var selected = SelectedSource();
         if (selected is null) return;
-        var clone = VisualEditorSupport.Clone(_working.Sources.Single(x => x.Id == selected.Id));
+        var source = _working.Sources.FirstOrDefault(x => x.Id == selected.Id);
+        if (source is null)
+        {
+            RefreshSourcesGrid();
+            return;
+        }
+        var clone = VisualEditorSupport.Clone(source);
         clone.Id = Guid.NewGuid();
         clone.Name += " - Cópia";
         clone.Alias += "Copy";
@@ -459,7 +471,12 @@ internal sealed class AutomationWizardForm : Form
         var selected = SelectedSource();
         if (selected is null) return;
         if (MessageBox.Show(this, $"Excluir a fonte '{selected.Name}'?", "Confirmação", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
-        var source = _working.Sources.Single(x => x.Id == selected.Id);
+        var source = _working.Sources.FirstOrDefault(x => x.Id == selected.Id);
+        if (source is null)
+        {
+            RefreshSourcesGrid();
+            return;
+        }
         _working.Sources.Remove(source);
         if (_working.Sources.Count > 0 && _working.Sources.All(x => !x.IsPrimary)) _working.Sources[0].IsPrimary = true;
         RefreshSourcesAndFields();
@@ -472,7 +489,12 @@ internal sealed class AutomationWizardForm : Form
         try
         {
             UseWaitCursor = true;
-            var source = _working.Sources.Single(x => x.Id == selected.Id);
+            var source = _working.Sources.FirstOrDefault(x => x.Id == selected.Id);
+            if (source is null)
+            {
+                RefreshSourcesGrid();
+                return;
+            }
             var result = await _sourceDesigner.TestAsync(source, CancellationToken.None);
             MessageBox.Show(this, $"{result.Message}\nTempo: {result.Duration.TotalMilliseconds:N0} ms", "Teste da fonte", MessageBoxButtons.OK,
                 result.Success ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
@@ -512,7 +534,12 @@ internal sealed class AutomationWizardForm : Form
     {
         var selected = SelectedAction();
         if (selected is null) return;
-        var action = _working.Actions.Single(x => x.Id == selected.Id);
+        var action = _working.Actions.FirstOrDefault(x => x.Id == selected.Id);
+        if (action is null)
+        {
+            RefreshActionsGrid();
+            return;
+        }
         var channels = await _store.GetChannelConfigurationsAsync(CancellationToken.None);
         using var editor = new ActionEditorForm(VisualEditorSupport.Clone(action), channels, GetKnownFields());
         if (editor.ShowDialog(this) == DialogResult.OK && editor.Definition is not null)
@@ -526,7 +553,13 @@ internal sealed class AutomationWizardForm : Form
     {
         var selected = SelectedAction();
         if (selected is null) return;
-        var clone = VisualEditorSupport.Clone(_working.Actions.Single(x => x.Id == selected.Id));
+        var action = _working.Actions.FirstOrDefault(x => x.Id == selected.Id);
+        if (action is null)
+        {
+            RefreshActionsGrid();
+            return;
+        }
+        var clone = VisualEditorSupport.Clone(action);
         clone.Id = Guid.NewGuid();
         clone.Name += " - Cópia";
         _working.Actions.Add(clone);
@@ -566,7 +599,12 @@ internal sealed class AutomationWizardForm : Form
     {
         var selected = SelectedGroup();
         if (selected is null) return;
-        var group = _working.ContactGroups.Single(x => string.Equals(x.Id, selected.Id, StringComparison.OrdinalIgnoreCase));
+        var group = _working.ContactGroups.FirstOrDefault(x => string.Equals(x.Id, selected.Id, StringComparison.OrdinalIgnoreCase));
+        if (group is null)
+        {
+            RefreshGroupsGrid();
+            return;
+        }
         using var editor = new ContactGroupEditorForm(VisualEditorSupport.Clone(group));
         if (editor.ShowDialog(this) == DialogResult.OK && editor.Definition is not null)
         {
@@ -807,11 +845,8 @@ internal sealed class AutomationWizardForm : Form
     private ActionRow? SelectedAction() => _actions.CurrentRow?.DataBoundItem as ActionRow;
     private GroupRow? SelectedGroup() => _groups.CurrentRow?.DataBoundItem as GroupRow;
 
-    private static void SelectDisplay<T>(ComboBox comboBox, T value)
-    {
-        comboBox.SelectedItem = comboBox.Items.Cast<DisplayItem<T>>()
-            .First(x => EqualityComparer<T>.Default.Equals(x.Value, value));
-    }
+    private static void SelectDisplay<T>(ComboBox comboBox, T value) =>
+        VisualEditorSupport.SelectDisplayItem(comboBox, value, value);
 
     private static T SelectedDisplayValue<T>(ComboBox comboBox, T fallback) =>
         comboBox.SelectedItem is DisplayItem<T> item ? item.Value : fallback;

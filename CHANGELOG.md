@@ -25,6 +25,18 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 - Conectores adicionais por plugins externos.
 - Administração centralizada opcional.
 
+## [0.2.1] - 2026-07-28
+
+### Corrigido
+
+- Corrigida a abertura dos formulários visuais quando os `ComboBox` ainda não materializaram seus itens vinculados.
+- Removidas seleções com `First(...)` que causavam `Sequence contains no matching element` ao criar ou editar automações, canais, fontes, regras e ações.
+- Adicionada seleção tolerante com fallback para valores legados, desconhecidos ou temporariamente indisponíveis.
+- Endurecidos os CRUDs visuais contra linhas desatualizadas ou itens removidos durante a edição.
+- Adicionado tratamento global de exceções da interface para impedir a caixa de depuração JIT e manter a aplicação aberta.
+- Adicionado registro de falhas inesperadas em `unhandled-ui.log`.
+- Adicionados testes de regressão para seleção de valores, fallback legado e listas vazias.
+
 ## [0.2.0] - 2026-07-28
 
 ### Adicionado

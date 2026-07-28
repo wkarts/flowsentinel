@@ -396,11 +396,8 @@ internal sealed class ActionEditorForm : Form
         unit.SelectedItem = converted.Unit;
     }
 
-    private static void SelectDisplay<T>(ComboBox comboBox, T value)
-    {
-        comboBox.SelectedItem = comboBox.Items.Cast<DisplayItem<T>>()
-            .First(x => EqualityComparer<T>.Default.Equals(x.Value, value));
-    }
+    private static void SelectDisplay<T>(ComboBox comboBox, T value) =>
+        VisualEditorSupport.SelectDisplayItem(comboBox, value, value);
 
     private static T SelectedValue<T>(ComboBox comboBox, T fallback) =>
         comboBox.SelectedItem is DisplayItem<T> item ? item.Value : fallback;

@@ -739,15 +739,11 @@ internal sealed class SourceEditorForm : Form
     private SourceType SelectedSourceType() => (_type.SelectedItem as DisplayItem<SourceType>)?.Value ?? SourceType.Excel;
     private DatabaseProvider SelectedProvider() => (_provider.SelectedItem as DisplayItem<DatabaseProvider>)?.Value ?? DatabaseProvider.Sqlite;
 
-    private void SelectSourceType(SourceType value)
-    {
-        _type.SelectedItem = _type.Items.Cast<DisplayItem<SourceType>>().First(x => EqualityComparer<SourceType>.Default.Equals(x.Value, value));
-    }
+    private void SelectSourceType(SourceType value) =>
+        VisualEditorSupport.SelectDisplayItem(_type, value, SourceType.Excel);
 
-    private void SelectProvider(DatabaseProvider value)
-    {
-        _provider.SelectedItem = _provider.Items.Cast<DisplayItem<DatabaseProvider>>().First(x => EqualityComparer<DatabaseProvider>.Default.Equals(x.Value, value));
-    }
+    private void SelectProvider(DatabaseProvider value) =>
+        VisualEditorSupport.SelectDisplayItem(_provider, value, DatabaseProvider.Sqlite);
 
     private static string Required(string value, string message)
     {

@@ -146,9 +146,6 @@ internal sealed class RuleEditorForm : Form
         }
     }
 
-    private void SelectOperator(RuleOperator value)
-    {
-        _operator.SelectedItem = _operator.Items.Cast<DisplayItem<RuleOperator>>()
-            .First(x => EqualityComparer<RuleOperator>.Default.Equals(x.Value, value));
-    }
+    private void SelectOperator(RuleOperator value) =>
+        VisualEditorSupport.SelectDisplayItem(_operator, value, RuleOperator.Equal);
 }

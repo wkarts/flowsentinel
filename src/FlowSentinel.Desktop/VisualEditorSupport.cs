@@ -87,6 +87,58 @@ internal static class VisualEditorSupport
         Margin = new Padding(3, 8, 3, 3)
     };
 
+    internal static bool SelectDisplayItem<T>(ComboBox comboBox, T value, T fallback)
+    {
+        ArgumentNullException.ThrowIfNull(comboBox);
+
+        var items = GetDisplayItems<T>(comboBox);
+        var selected = ResolveDisplayItem(items, value, fallback);
+
+        if (selected is null)
+        {
+            comboBox.SelectedIndex = -1;
+            return false;
+        }
+
+        var selectedIndex = items.IndexOf(selected);
+        if (selectedIndex >= 0)
+        {
+            comboBox.SelectedIndex = selectedIndex;
+        }
+        else
+        {
+            comboBox.SelectedItem = selected;
+        }
+
+        return true;
+    }
+
+    internal static DisplayItem<T>? ResolveDisplayItem<T>(
+        IEnumerable<DisplayItem<T>> items,
+        T value,
+        T fallback)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        var materialized = items as IReadOnlyList<DisplayItem<T>> ?? items.ToList();
+        var comparer = EqualityComparer<T>.Default;
+        return materialized.FirstOrDefault(item => comparer.Equals(item.Value, value))
+               ?? materialized.FirstOrDefault(item => comparer.Equals(item.Value, fallback))
+               ?? materialized.FirstOrDefault();
+    }
+
+    private static List<DisplayItem<T>> GetDisplayItems<T>(ComboBox comboBox)
+    {
+        if (comboBox.DataSource is IEnumerable<DisplayItem<T>> dataSource)
+        {
+            return dataSource.ToList();
+        }
+
+        return comboBox.Items.Cast<object>()
+            .OfType<DisplayItem<T>>()
+            .ToList();
+    }
+
     internal static void ShowError(IWin32Window owner, Exception exception, string title = "FlowSentinel") =>
         MessageBox.Show(owner, exception.Message, title, MessageBoxButtons.OK, MessageBoxIcon.Error);
 }
