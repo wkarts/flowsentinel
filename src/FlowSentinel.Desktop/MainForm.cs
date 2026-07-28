@@ -13,11 +13,16 @@ internal sealed class MainForm : Form
     private readonly IEvolutionInstanceService _evolutionInstanceService;
     private readonly ISourceDesignerService _sourceDesigner;
     private readonly AppPaths _paths;
+    private readonly DesktopSettingsService _settingsService;
     private readonly DataGridView _grid = new();
     private readonly Label _summary = new();
     private readonly ToolStripStatusLabel _status = new("Pronto");
 
     private bool _allowClose;
+
+    internal event EventHandler? SettingsRequested;
+    internal event EventHandler? AboutRequested;
+    internal event EventHandler? ExitRequested;
 
     public MainForm(
         IFlowStore store,
@@ -25,7 +30,8 @@ internal sealed class MainForm : Form
         ISecretProtector secretProtector,
         IEvolutionInstanceService evolutionInstanceService,
         ISourceDesignerService sourceDesigner,
-        AppPaths paths)
+        AppPaths paths,
+        DesktopSettingsService settingsService)
     {
         _store = store;
         _automationControl = automationControl;
@@ -33,6 +39,7 @@ internal sealed class MainForm : Form
         _evolutionInstanceService = evolutionInstanceService;
         _sourceDesigner = sourceDesigner;
         _paths = paths;
+        _settingsService = settingsService;
 
         Text = "FlowSentinel - Monitoramento e Notificações";
         StartPosition = FormStartPosition.CenterScreen;
@@ -82,7 +89,8 @@ internal sealed class MainForm : Form
         AddButton(toolbar, "Exportar", async (_, _) => await ExportAutomationAsync());
         AddButton(toolbar, "Excluir", async (_, _) => await DeleteAutomationAsync());
         AddButton(toolbar, "Canais", async (_, _) => await ManageChannelsAsync());
-        AddButton(toolbar, "Iniciar com Windows", (_, _) => ToggleStartup());
+        AddButton(toolbar, "Configurações", (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty));
+        AddButton(toolbar, "Sobre", (_, _) => AboutRequested?.Invoke(this, EventArgs.Empty));
         AddButton(toolbar, "Dados", (_, _) => OpenFolder(_paths.DataDirectory));
         AddButton(toolbar, "Logs", (_, _) => OpenFolder(_paths.LogDirectory));
 
@@ -297,25 +305,6 @@ internal sealed class MainForm : Form
         await RefreshAsync();
     }
 
-    private void ToggleStartup()
-    {
-        try
-        {
-            var enabled = StartupRegistration.IsEnabled();
-            StartupRegistration.SetEnabled(!enabled);
-            MessageBox.Show(
-                this,
-                !enabled ? "Inicialização automática ativada." : "Inicialização automática desativada.",
-                "FlowSentinel",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-        }
-        catch (Exception exception)
-        {
-            ShowError(exception);
-        }
-    }
-
     private AutomationRow? SelectedItem() => _grid.CurrentRow?.DataBoundItem as AutomationRow;
 
     private async Task RunBusyAsync(string status, Func<Task> operation)
@@ -340,11 +329,55 @@ internal sealed class MainForm : Form
 
     private void OnFormClosing(object? sender, FormClosingEventArgs eventArgs)
     {
-        if (!_allowClose && eventArgs.CloseReason == CloseReason.UserClosing)
+        if (_allowClose || eventArgs.CloseReason != CloseReason.UserClosing)
         {
-            eventArgs.Cancel = true;
-            Hide();
+            return;
         }
+
+        var settings = _settingsService.Current;
+        eventArgs.Cancel = true;
+
+        switch (settings.CloseBehavior)
+        {
+            case DesktopCloseBehavior.MinimizeToTray:
+                Hide();
+                return;
+
+            case DesktopCloseBehavior.Ask:
+                var result = MessageBox.Show(
+                    this,
+                    "Deseja encerrar o FlowSentinel?\n\nSim: encerrar\nNão: minimizar para o tray",
+                    "Fechar FlowSentinel",
+                    MessageBoxButtons.YesNoCancel,
+                    MessageBoxIcon.Question);
+
+                if (result == DialogResult.Yes)
+                {
+                    RequestApplicationExit();
+                }
+                else if (result == DialogResult.No)
+                {
+                    Hide();
+                }
+                return;
+
+            case DesktopCloseBehavior.Exit:
+                if (!settings.ConfirmBeforeExit || MessageBox.Show(
+                        this,
+                        "Encerrar o FlowSentinel e interromper o processamento do Desktop?",
+                        "Confirmação",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    RequestApplicationExit();
+                }
+                return;
+        }
+    }
+
+    private void RequestApplicationExit()
+    {
+        BeginInvoke(new Action(() => ExitRequested?.Invoke(this, EventArgs.Empty)));
     }
 
     private static void OpenFolder(string path)

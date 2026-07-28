@@ -197,6 +197,22 @@ jobs:
           if ('${{ matrix.product }}' -eq 'Service') {
             Copy-Item scripts/install-service.ps1 $output
             Copy-Item scripts/uninstall-service.ps1 $output
+          } else {
+            $serviceOutput = Join-Path $output 'service'
+            dotnet publish src/FlowSentinel.Service/FlowSentinel.Service.csproj `
+              -c Release `
+              -r '${{ matrix.rid }}' `
+              --self-contained true `
+              --no-restore `
+              -p:Version='${{ needs.metadata.outputs.version }}' `
+              -o $serviceOutput
+
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+
+            Copy-Item scripts/install-service.ps1 $serviceOutput
+            Copy-Item scripts/uninstall-service.ps1 $serviceOutput
           }
 
           if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_BASE64)) {
@@ -255,6 +271,25 @@ jobs:
           -p:Version=${{ needs.metadata.outputs.version }}
           -o artifacts/publish/${{ matrix.rid }}/desktop
 
+      - name: Publicar Windows Service para o instalador
+        shell: pwsh
+        run: |
+          $serviceOutput = 'artifacts/publish/${{ matrix.rid }}/service'
+          dotnet publish src/FlowSentinel.Service/FlowSentinel.Service.csproj `
+            -c Release `
+            -r '${{ matrix.rid }}' `
+            --self-contained true `
+            --no-restore `
+            -p:Version='${{ needs.metadata.outputs.version }}' `
+            -o $serviceOutput
+
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+          Copy-Item scripts/install-service.ps1 $serviceOutput
+          Copy-Item scripts/uninstall-service.ps1 $serviceOutput
+
       - name: Compilar instalador
         shell: pwsh
         env:
@@ -277,6 +312,7 @@ jobs:
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
           $scriptPath = (Resolve-Path 'installer/FlowSentinel.Desktop.iss').Path
           $sourceDir = (Resolve-Path "artifacts/publish/$env:RUNTIME_ID/desktop").Path
+          $serviceSourceDir = (Resolve-Path "artifacts/publish/$env:RUNTIME_ID/service").Path
           $outputFileName = "FlowSentinel-Setup-$env:APP_VERSION-$env:RUNTIME_ID"
 
           # ISCC /D emula #define. As aspas podem delimitar o argumento no
@@ -285,6 +321,7 @@ jobs:
             $scriptPath,
             "/DAppVersion=$env:APP_VERSION",
             "/DSourceDir=$sourceDir",
+            "/DServiceSourceDir=$serviceSourceDir",
             "/DArchitecturesAllowed=$env:ARCHITECTURES_ALLOWED",
             "/F$outputFileName"
           )

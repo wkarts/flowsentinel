@@ -1,5 +1,6 @@
 using FlowSentinel.Application;
 using FlowSentinel.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -25,6 +26,8 @@ internal static class Program
         });
         builder.Logging.ClearProviders();
         builder.Logging.AddFlowSentinelFileLogging(paths.LogDirectory);
+        builder.Services.AddSingleton<IWorkerRuntimeSettings>(
+            new JsonFileWorkerRuntimeSettings(Path.Combine(paths.RootDirectory, "service-settings.json")));
         builder.Services
             .AddFlowSentinelApplication()
             .AddFlowSentinelInfrastructure(paths);

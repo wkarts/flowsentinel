@@ -45,6 +45,10 @@ try {
         Copy-Item scripts/install-service.ps1 $serviceDir
         Copy-Item scripts/uninstall-service.ps1 $serviceDir
 
+        $embeddedServiceDir = Join-Path $desktopDir 'service'
+        New-Item $embeddedServiceDir -ItemType Directory -Force | Out-Null
+        Copy-Item "$serviceDir\*" $embeddedServiceDir -Recurse -Force
+
         Compress-Archive -Path "$desktopDir\*" `
             -DestinationPath "$out\FlowSentinel-Desktop-$Version-$rid.zip" -CompressionLevel Optimal
         Compress-Archive -Path "$serviceDir\*" `

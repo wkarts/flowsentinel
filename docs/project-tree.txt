@@ -1,4 +1,4 @@
-FlowSentinel 0.2.2 - Árvore do projeto
+FlowSentinel 0.2.3 - Árvore do projeto
 
 .editorconfig
 .gitattributes
@@ -19,6 +19,8 @@ Directory.Packages.props
 docs/architecture.md
 docs/automation-schema.md
 docs/channel-settings.md
+docs/delivery-standard.md
+docs/desktop-experience.md
 docs/examples/automation-clientes.json
 docs/github-flow.md
 docs/project-tree.txt
@@ -53,16 +55,29 @@ src/FlowSentinel.Application/RuleEngine.cs
 src/FlowSentinel.Application/SecretProtectionScope.cs
 src/FlowSentinel.Application/StoreModels.cs
 src/FlowSentinel.Application/TemplateRenderer.cs
+src/FlowSentinel.Application/WorkerRuntimeSettings.cs
 src/FlowSentinel.Application/Workers.cs
+src/FlowSentinel.Desktop/AboutForm.cs
 src/FlowSentinel.Desktop/ActionEditorForm.cs
 src/FlowSentinel.Desktop/app.manifest
+src/FlowSentinel.Desktop/ApplicationMetadata.cs
 src/FlowSentinel.Desktop/Assets/FlowSentinel.ico
+src/FlowSentinel.Desktop/Assets/WWSoftwaresDeveloperLogo-1024.png
+src/FlowSentinel.Desktop/Assets/WWSoftwaresDeveloperLogo-128.png
+src/FlowSentinel.Desktop/Assets/WWSoftwaresDeveloperLogo-256.png
+src/FlowSentinel.Desktop/Assets/WWSoftwaresDeveloperLogo-512.png
+src/FlowSentinel.Desktop/Assets/WWSoftwaresDeveloperLogo-64.png
+src/FlowSentinel.Desktop/Assets/WWSoftwaresDeveloperLogo.ico
+src/FlowSentinel.Desktop/Assets/WWSoftwaresDeveloperLogo.png
 src/FlowSentinel.Desktop/AutomationJsonEditorForm.cs
 src/FlowSentinel.Desktop/AutomationWizardForm.cs
 src/FlowSentinel.Desktop/ChannelEditorForm.cs
 src/FlowSentinel.Desktop/ChannelManagerForm.cs
 src/FlowSentinel.Desktop/ContactGroupEditorForm.cs
+src/FlowSentinel.Desktop/DesktopAssets.cs
+src/FlowSentinel.Desktop/DesktopLaunchOptions.cs
 src/FlowSentinel.Desktop/DesktopNotificationSink.cs
+src/FlowSentinel.Desktop/DesktopSettings.cs
 src/FlowSentinel.Desktop/EvolutionQrForm.cs
 src/FlowSentinel.Desktop/FlowSentinel.Desktop.csproj
 src/FlowSentinel.Desktop/MainForm.cs
@@ -70,10 +85,13 @@ src/FlowSentinel.Desktop/Program.cs
 src/FlowSentinel.Desktop/RuleEditorForm.cs
 src/FlowSentinel.Desktop/RuleGroupEditorForm.cs
 src/FlowSentinel.Desktop/RuleSetEditorControl.cs
+src/FlowSentinel.Desktop/SettingsForm.cs
 src/FlowSentinel.Desktop/SourceEditorForm.cs
+src/FlowSentinel.Desktop/SplashForm.cs
 src/FlowSentinel.Desktop/StartupRegistration.cs
 src/FlowSentinel.Desktop/TrayApplicationContext.cs
 src/FlowSentinel.Desktop/VisualEditorSupport.cs
+src/FlowSentinel.Desktop/WindowsServiceManager.cs
 src/FlowSentinel.Domain/AutomationDefinition.cs
 src/FlowSentinel.Domain/Enums.cs
 src/FlowSentinel.Domain/FlowSentinel.Domain.csproj
@@ -86,6 +104,7 @@ src/FlowSentinel.Infrastructure/Channels/LocalWindowsChannel.cs
 src/FlowSentinel.Infrastructure/Channels/TelegramChannel.cs
 src/FlowSentinel.Infrastructure/DependencyInjection.cs
 src/FlowSentinel.Infrastructure/FlowSentinel.Infrastructure.csproj
+src/FlowSentinel.Infrastructure/JsonFileWorkerRuntimeSettings.cs
 src/FlowSentinel.Infrastructure/Logging.cs
 src/FlowSentinel.Infrastructure/Persistence/Entities.cs
 src/FlowSentinel.Infrastructure/Persistence/FlowSentinelDbContext.cs
@@ -103,6 +122,7 @@ tests/FlowSentinel.Application.Tests/FlowSentinel.Application.Tests.csproj
 tests/FlowSentinel.Application.Tests/GlobalUsings.cs
 tests/FlowSentinel.Application.Tests/RuleEngineTests.cs
 tests/FlowSentinel.Application.Tests/TemplateRendererTests.cs
+tests/FlowSentinel.Desktop.Tests/DesktopSettingsTests.cs
 tests/FlowSentinel.Desktop.Tests/FlowSentinel.Desktop.Tests.csproj
 tests/FlowSentinel.Desktop.Tests/GlobalUsings.cs
 tests/FlowSentinel.Desktop.Tests/VisualEditorSupportTests.cs
@@ -112,4 +132,5 @@ tests/FlowSentinel.Domain.Tests/GlobalUsings.cs
 tests/FlowSentinel.Infrastructure.Tests/FlowSentinel.Infrastructure.Tests.csproj
 tests/FlowSentinel.Infrastructure.Tests/FlowStoreSqliteTests.cs
 tests/FlowSentinel.Infrastructure.Tests/GlobalUsings.cs
+tests/FlowSentinel.Infrastructure.Tests/JsonFileWorkerRuntimeSettingsTests.cs
 tests/FlowSentinel.Infrastructure.Tests/SourceDesignerServiceTests.cs

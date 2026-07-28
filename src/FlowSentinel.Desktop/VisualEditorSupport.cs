@@ -131,6 +131,14 @@ internal static class VisualEditorSupport
         return true;
     }
 
+    internal static T SelectedValue<T>(ComboBox comboBox, T fallback)
+    {
+        ArgumentNullException.ThrowIfNull(comboBox);
+        return comboBox.SelectedItem is DisplayItem<T> selected
+            ? selected.Value
+            : fallback;
+    }
+
     internal static DisplayItem<T>? ResolveDisplayItem<T>(
         IEnumerable<DisplayItem<T>> items,
         T value,

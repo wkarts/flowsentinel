@@ -25,6 +25,27 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 - Conectores adicionais por plugins externos.
 - Administração centralizada opcional.
 
+## [0.2.3] - 2026-07-28
+
+### Adicionado
+
+- Splash screen leve com status de inicialização, versão do produto e identidade do desenvolvedor.
+- Tela Sobre com informações da WWSoftware's Sistemas e Tecnologias, Wallace Kleiton, GitHub, WhatsApp e e-mail.
+- Logo institucional do desenvolvedor em PNG e ICO, mantida separada da identidade visual principal do FlowSentinel.
+- Tela central de configurações para comportamento do Desktop, inicialização, tray, processamento, dados, logs e Windows Service.
+- Inicialização automática por usuário com os argumentos `--startup --tray`.
+- Controle visual para instalar, atualizar, iniciar, parar, remover e consultar o Windows Service.
+- Parâmetros dinâmicos do agendador e da fila de entregas para Desktop e serviço.
+- Inclusão do binário e dos scripts do Windows Service nos pacotes Desktop e nos instaladores.
+- Menu Configurações e Sobre na janela principal e no tray.
+
+### Alterado
+
+- O fechamento da janela agora respeita a política configurada: minimizar, perguntar ou encerrar.
+- Os workers deixaram de utilizar intervalos fixos e passam a consultar os parâmetros de execução em tempo real.
+- O instalador registra a inicialização automática diretamente no tray e inclui os arquivos necessários para administrar o serviço.
+- Metadados de autoria e publicação atualizados para WWSoftware's Sistemas e Tecnologias / Wallace Kleiton.
+
 ## [0.2.2] - 2026-07-28
 
 ### Corrigido

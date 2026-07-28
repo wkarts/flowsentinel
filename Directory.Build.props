@@ -9,10 +9,10 @@
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
     <RepositoryUrl>https://github.com/wkarts/flowsentinel</RepositoryUrl>
-    <Authors>Wallace</Authors>
-    <Company>FlowSentinel</Company>
+    <Authors>Wallace Kleiton</Authors>
+    <Company>WWSoftware's Sistemas e Tecnologias</Company>
     <Product>FlowSentinel</Product>
-    <Copyright>Copyright © Wallace</Copyright>
+    <Copyright>Copyright © 2026 WWSoftware's Sistemas e Tecnologias - Wallace Kleiton</Copyright>
     <AssemblyVersion>$(VersionPrefix).0</AssemblyVersion>
     <FileVersion>$(VersionPrefix).0</FileVersion>
     <InformationalVersion Condition="'$(VersionSuffix)' == ''">$(VersionPrefix)</InformationalVersion>
