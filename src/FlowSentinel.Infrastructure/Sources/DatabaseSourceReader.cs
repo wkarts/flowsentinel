@@ -42,7 +42,7 @@ internal sealed partial class DatabaseSourceReader : IDataSourceReader
         {
             var parameter = command.CreateParameter();
             parameter.ParameterName = item.Key;
-            parameter.Value = item.Value ?? DBNull.Value;
+            parameter.Value = (object?)item.Value ?? DBNull.Value;
             command.Parameters.Add(parameter);
         }
 

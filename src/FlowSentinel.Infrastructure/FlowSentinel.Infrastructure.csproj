@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <RootNamespace>FlowSentinel.Infrastructure</RootNamespace>
     <AssemblyName>FlowSentinel.Infrastructure</AssemblyName>
   </PropertyGroup>

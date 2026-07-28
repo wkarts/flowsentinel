@@ -1,11 +1,16 @@
 # Changelog
 
+
 Todas as alterações relevantes deste projeto serão documentadas neste arquivo.
 O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 
 ## [Não publicado]
 
 ### Corrigido
+
+- Corrigida a atribuição de parâmetros SQL nulos em `DatabaseSourceReader`, eliminando o erro de compilação `CS0019`.
+- Definido `FlowSentinel.Infrastructure` como `net10.0-windows`, refletindo o uso intencional do Windows DPAPI e eliminando avisos `CA1416`.
+- Adicionada permissão `actions: read` ao workflow CodeQL para leitura de metadados das execuções.
 
 - Corrige o erro `WFO1000` do analisador WinForms, restringindo propriedades internas de estado e resultado dos formulários.
 - Remove a referência redundante a `System.Text.Encoding.CodePages` no .NET 10, eliminando o aviso `NU1510`.
