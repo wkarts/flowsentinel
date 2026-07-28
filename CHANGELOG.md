@@ -25,6 +25,16 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 - Conectores adicionais por plugins externos.
 - Administração centralizada opcional.
 
+## [0.1.1] - 2026-07-28
+
+### Corrigido
+
+- Removido o uso de `DateTimeOffset` nas entidades persistidas pelo SQLite, mantendo `DateTimeOffset` apenas nos contratos públicos da aplicação.
+- Datas persistidas passaram a ser normalizadas em UTC com `DateTime`, permitindo comparação, ordenação e agregações no servidor SQLite.
+- Corrigidas as consultas de painel e agendamento que utilizavam `MaxAsync` sobre `DateTimeOffset` e causavam erro em toda atualização da interface.
+- Adicionada migração interna idempotente baseada em `PRAGMA user_version` para normalizar datas já gravadas sem apagar o banco existente.
+- Adicionados testes de integração do `FlowStore` cobrindo painel, automações vencidas, agregação de ações e fila de entregas no SQLite real.
+
 ## [0.1.0] - 2026-07-28
 
 ### Corrigido

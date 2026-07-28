@@ -8,6 +8,7 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.10" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.10" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.10" />
     <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
     <PackageVersion Include="SQLitePCLRaw.core" Version="2.1.12" />
     <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.12" />
