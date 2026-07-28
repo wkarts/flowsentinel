@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>FlowSentinel.Service</RootNamespace>
+    <AssemblyName>FlowSentinel.Service</AssemblyName>
+    <RuntimeIdentifiers>win-x86;win-x64</RuntimeIdentifiers>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <PublishTrimmed>false</PublishTrimmed>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <PublishReadyToRun>false</PublishReadyToRun>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FlowSentinel.Application\FlowSentinel.Application.csproj" />
+    <ProjectReference Include="..\FlowSentinel.Infrastructure\FlowSentinel.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\docs\examples\automation-clientes.json" Link="examples\automation-clientes.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\samples\clientes.csv" Link="samples\clientes.csv" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

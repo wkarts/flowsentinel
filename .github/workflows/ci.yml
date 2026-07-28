@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, 'feature/**', 'fix/**', 'release/**']
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Build e testes
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restaurar
+        run: dotnet restore FlowSentinel.sln
+
+      - name: Verificar formatação
+        run: dotnet format analyzers FlowSentinel.sln --verify-no-changes --no-restore --severity error
+
+      - name: Compilar
+        run: dotnet build FlowSentinel.sln -c Release --no-restore
+
+      - name: Testar
+        shell: pwsh
+        run: |
+          $testProjects = Get-ChildItem -Path tests -Filter *.csproj -Recurse | Sort-Object FullName
+
+          if ($testProjects.Count -eq 0) {
+            throw "Nenhum projeto de testes foi encontrado no diretório tests."
+          }
+
+          foreach ($project in $testProjects) {
+            $projectName = [System.IO.Path]::GetFileNameWithoutExtension($project.Name)
+            $resultsDirectory = Join-Path "artifacts/test-results" $projectName
+
+            dotnet test $project.FullName `
+              -c Release `
+              --no-build `
+              --collect:"XPlat Code Coverage" `
+              --results-directory $resultsDirectory `
+              --logger "trx;LogFileName=$projectName.trx"
+
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
+
+      - name: Publicação de validação x64
+        run: >-
+          dotnet publish src/FlowSentinel.Desktop/FlowSentinel.Desktop.csproj
+          -c Release -r win-x64 --self-contained true --no-restore
+          -o artifacts/smoke/win-x64
+
+      - name: Publicação de validação x86
+        run: >-
+          dotnet publish src/FlowSentinel.Desktop/FlowSentinel.Desktop.csproj
+          -c Release -r win-x86 --self-contained true --no-restore
+          -o artifacts/smoke/win-x86
+
+      - name: Anexar resultados de testes
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: artifacts/test-results
+          if-no-files-found: warn
+          retention-days: 14

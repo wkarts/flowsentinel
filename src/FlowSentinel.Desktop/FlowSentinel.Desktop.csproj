@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>FlowSentinel.Desktop</RootNamespace>
+    <AssemblyName>FlowSentinel</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\FlowSentinel.ico</ApplicationIcon>
+    <RuntimeIdentifiers>win-x86;win-x64</RuntimeIdentifiers>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <PublishTrimmed>false</PublishTrimmed>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <PublishReadyToRun>false</PublishReadyToRun>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FlowSentinel.Application\FlowSentinel.Application.csproj" />
+    <ProjectReference Include="..\FlowSentinel.Infrastructure\FlowSentinel.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\docs\examples\automation-clientes.json" Link="examples\automation-clientes.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\samples\clientes.csv" Link="samples\clientes.csv" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

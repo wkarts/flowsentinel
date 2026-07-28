@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FlowSentinel.Domain</RootNamespace>
+    <AssemblyName>FlowSentinel.Domain</AssemblyName>
+  </PropertyGroup>
+</Project>

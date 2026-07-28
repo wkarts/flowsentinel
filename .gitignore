@@ -1,34 +1,20 @@
-# Sistema
+**/bin/
+**/obj/
+.packages/
+.vs/
+.idea/
+*.user
+*.suo
+*.cache
+*.log
+artifacts/
+TestResults/
+coverage/
+*.db
+*.db-shm
+*.db-wal
+*.pfx
+*.snk
+.env
 .DS_Store
 Thumbs.db
-desktop.ini
-
-# Logs
-*.log
-logs/
-
-# Ambiente
-.env
-.env.*
-!.env.example
-
-# Node/PHP/Python/Rust comuns
-node_modules/
-vendor/
-__pycache__/
-target/
-dist/
-build/
-coverage/
-
-# IDE
-.vscode/
-.idea/
-
-# Docker local
-docker-compose.override.yml
-
-# Temporarios
-tmp/
-temp/
-*.tmp
