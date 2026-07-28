@@ -48,7 +48,7 @@ internal static class Program
         {
             await host.StartAsync();
             var context = host.Services.GetRequiredService<TrayApplicationContext>();
-            Application.Run(context);
+            System.Windows.Forms.Application.Run(context);
         }
         catch (Exception exception)
         {

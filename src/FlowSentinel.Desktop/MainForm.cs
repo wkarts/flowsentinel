@@ -16,7 +16,7 @@ internal sealed class MainForm : Form
     private readonly Label _summary = new();
     private readonly ToolStripStatusLabel _status = new("Pronto");
 
-    internal bool AllowClose { get; set; }
+    private bool _allowClose;
 
     public MainForm(
         IFlowStore store,
@@ -35,12 +35,14 @@ internal sealed class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(980, 600);
         Size = new Size(1180, 720);
-        Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        Icon = Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath) ?? SystemIcons.Application;
 
         BuildLayout();
         Load += async (_, _) => await RefreshAsync();
         FormClosing += OnFormClosing;
     }
+
+    internal void PrepareForExit() => _allowClose = true;
 
     public async Task ExecuteSelectedAsync()
     {
@@ -312,7 +314,7 @@ internal sealed class MainForm : Form
 
     private void OnFormClosing(object? sender, FormClosingEventArgs eventArgs)
     {
-        if (!AllowClose && eventArgs.CloseReason == CloseReason.UserClosing)
+        if (!_allowClose && eventArgs.CloseReason == CloseReason.UserClosing)
         {
             eventArgs.Cancel = true;
             Hide();

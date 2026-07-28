@@ -32,7 +32,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _notifyIcon = new NotifyIcon
         {
             Text = "FlowSentinel",
-            Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application,
+            Icon = Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath) ?? SystemIcons.Application,
             ContextMenuStrip = menu,
             Visible = true
         };
@@ -86,7 +86,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _notificationTimer.Dispose();
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
-        _mainForm.AllowClose = true;
+        _mainForm.PrepareForExit();
         _mainForm.Close();
         base.ExitThreadCore();
     }

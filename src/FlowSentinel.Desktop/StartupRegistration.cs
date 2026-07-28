@@ -18,7 +18,7 @@ internal static class StartupRegistration
         using var key = Registry.CurrentUser.CreateSubKey(RegistryPath, writable: true);
         if (enabled)
         {
-            key.SetValue(ValueName, $"\"{Application.ExecutablePath}\" --startup", RegistryValueKind.String);
+            key.SetValue(ValueName, $"\"{System.Windows.Forms.Application.ExecutablePath}\" --startup", RegistryValueKind.String);
         }
         else
         {

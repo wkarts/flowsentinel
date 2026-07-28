@@ -8,6 +8,9 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 
 ### Corrigido
 
+- Eliminado o conflito entre o namespace `FlowSentinel.Application` e `System.Windows.Forms.Application`, corrigindo os erros `CS0234` em `Program`, `MainForm`, `TrayApplicationContext` e `StartupRegistration`.
+- Substituída a propriedade de estado `AllowClose` por campo privado e método interno, removendo definitivamente a origem do `WFO1000`.
+- Consolidada a correção de validação em um pacote cumulativo para evitar aplicação parcial de patches anteriores.
 - Corrigida a atribuição de parâmetros SQL nulos em `DatabaseSourceReader`, eliminando o erro de compilação `CS0019`.
 - Definido `FlowSentinel.Infrastructure` como `net10.0-windows`, refletindo o uso intencional do Windows DPAPI e eliminando avisos `CA1416`.
 - Adicionada permissão `actions: read` ao workflow CodeQL para leitura de metadados das execuções.
