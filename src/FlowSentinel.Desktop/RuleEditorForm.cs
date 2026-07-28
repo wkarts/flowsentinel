@@ -21,9 +21,10 @@ internal sealed class RuleEditorForm : Form
         MinimumSize = new Size(560, 340);
 
         _operator.DropDownStyle = ComboBoxStyle.DropDownList;
-        _operator.DataSource = Enum.GetValues<RuleOperator>()
-            .Select(x => new DisplayItem<RuleOperator>(x, VisualEditorSupport.RuleOperatorText(x)))
-            .ToList();
+        VisualEditorSupport.SetDisplayItems(
+            _operator,
+            Enum.GetValues<RuleOperator>()
+                .Select(x => new DisplayItem<RuleOperator>(x, VisualEditorSupport.RuleOperatorText(x))));
 
         var fieldPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false };
         _field.Width = 340;

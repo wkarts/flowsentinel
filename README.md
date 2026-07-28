@@ -71,7 +71,7 @@ Na primeira execução é criado o banco em:
 ## Publicação local
 
 ```powershell
-./scripts/publish.ps1 -Version 0.2.1
+./scripts/publish.ps1 -Version 0.2.2
 ```
 
 Os arquivos serão gerados em `artifacts/`.
@@ -88,8 +88,8 @@ Os arquivos serão gerados em `artifacts/`.
 3. Crie e envie a tag:
 
 ```powershell
-git tag v0.2.1
-git push origin v0.2.1
+git tag v0.2.2
+git push origin v0.2.2
 ```
 
 O workflow de release irá:
