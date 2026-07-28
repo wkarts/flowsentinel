@@ -7,9 +7,9 @@ bc8e346f626e8a724e7a0f69dc99c31852a76ac15b1dbe5c738a8ee80c49304b  ./.gitattribut
 397451cc6ece643d05752ea61cd47190d9fec725c0ffb6ca605f1c021814ce0c  ./.github/ISSUE_TEMPLATE/feature_request.yml
 49430960297d0e3fdfe224e92e8e60d917f85d3344ab699b23708b95fd32ecfe  ./.github/PULL_REQUEST_TEMPLATE.md
 0187df5bc3cf9a6d207db4c0687f954dd4680f42127eeb811d36a895a193329c  ./.github/dependabot.yml
-bb4a8403cf50d415728f7d3ca696c44d5d8152398a61f0910be3be9a2f4ce96d  ./.github/workflows/ci.yml
+fd780f246f89c11d5d481cf627781df621fc596fa9368e70db43fe13e3a83010  ./.github/workflows/ci.yml
 007af06ab65c01ad133f90821259d7a7ec4a6199ca78b3d69e5eb510875d67d4  ./.github/workflows/codeql.yml
-fba6dd6a80e5ce291e285aa2722849c285b752926ab3fbb4ea5f80188e4b0ae1  ./.github/workflows/release.yml
+9e4f46b30782cf4df4a922140f4e56e1969379eb29cf72926a360df37d321686  ./.github/workflows/release.yml
 b9510e8e89e708d4112da2293857ff00574f1f271c5180987820f9de9bd2668b  ./.gitignore
 c5f4a85662998f37c4a2259ddc53a028f74eb2295f02623ed3d7d68125dc4670  ./CHANGELOG.md
 be65e6d97039e78ef8d23083b06e7ab05b29471a74648f6da6840e6e74df946d  ./CODE_OF_CONDUCT.md
