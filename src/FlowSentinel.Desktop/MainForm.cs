@@ -11,6 +11,7 @@ internal sealed class MainForm : Form
     private readonly IAutomationControl _automationControl;
     private readonly ISecretProtector _secretProtector;
     private readonly IEvolutionInstanceService _evolutionInstanceService;
+    private readonly ISourceDesignerService _sourceDesigner;
     private readonly AppPaths _paths;
     private readonly DataGridView _grid = new();
     private readonly Label _summary = new();
@@ -23,12 +24,14 @@ internal sealed class MainForm : Form
         IAutomationControl automationControl,
         ISecretProtector secretProtector,
         IEvolutionInstanceService evolutionInstanceService,
+        ISourceDesignerService sourceDesigner,
         AppPaths paths)
     {
         _store = store;
         _automationControl = automationControl;
         _secretProtector = secretProtector;
         _evolutionInstanceService = evolutionInstanceService;
+        _sourceDesigner = sourceDesigner;
         _paths = paths;
 
         Text = "FlowSentinel - Monitoramento e Notificações";
@@ -71,8 +74,9 @@ internal sealed class MainForm : Form
 
         AddButton(toolbar, "Atualizar", async (_, _) => await RefreshAsync());
         AddButton(toolbar, "Executar agora", async (_, _) => await ExecuteSelectedAsync());
-        AddButton(toolbar, "Nova", async (_, _) => await CreateAutomationAsync());
-        AddButton(toolbar, "Editar JSON", async (_, _) => await EditAutomationAsync());
+        AddButton(toolbar, "Nova automação", async (_, _) => await CreateAutomationAsync());
+        AddButton(toolbar, "Editar", async (_, _) => await EditAutomationAsync());
+        AddButton(toolbar, "JSON avançado", async (_, _) => await EditAutomationJsonAsync());
         AddButton(toolbar, "Ativar/Desativar", async (_, _) => await ToggleAutomationAsync());
         AddButton(toolbar, "Importar", async (_, _) => await ImportAutomationAsync());
         AddButton(toolbar, "Exportar", async (_, _) => await ExportAutomationAsync());
@@ -149,7 +153,7 @@ internal sealed class MainForm : Form
     private async Task CreateAutomationAsync()
     {
         var definition = CreateTemplate();
-        using var editor = new AutomationJsonEditorForm(definition, _secretProtector);
+        using var editor = new AutomationWizardForm(definition, _store, _sourceDesigner, _secretProtector);
         if (editor.ShowDialog(this) == DialogResult.OK && editor.Definition is not null)
         {
             await _store.SaveAutomationAsync(editor.Definition, CancellationToken.None);
@@ -158,6 +162,28 @@ internal sealed class MainForm : Form
     }
 
     private async Task EditAutomationAsync()
+    {
+        var selected = SelectedItem();
+        if (selected is null)
+        {
+            return;
+        }
+
+        var definition = await _store.GetAutomationDefinitionAsync(selected.Id, CancellationToken.None);
+        if (definition is null)
+        {
+            return;
+        }
+
+        using var editor = new AutomationWizardForm(definition, _store, _sourceDesigner, _secretProtector);
+        if (editor.ShowDialog(this) == DialogResult.OK && editor.Definition is not null)
+        {
+            await _store.SaveAutomationAsync(editor.Definition, CancellationToken.None);
+            await RefreshAsync();
+        }
+    }
+
+    private async Task EditAutomationJsonAsync()
     {
         var selected = SelectedItem();
         if (selected is null)

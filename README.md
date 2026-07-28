@@ -71,7 +71,7 @@ Na primeira execução é criado o banco em:
 ## Publicação local
 
 ```powershell
-./scripts/publish.ps1 -Version 0.1.1
+./scripts/publish.ps1 -Version 0.2.0
 ```
 
 Os arquivos serão gerados em `artifacts/`.
@@ -88,8 +88,8 @@ Os arquivos serão gerados em `artifacts/`.
 3. Crie e envie a tag:
 
 ```powershell
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 O workflow de release irá:
@@ -114,17 +114,32 @@ WINDOWS_CERTIFICATE_PASSWORD
 
 O primeiro deve conter o PFX convertido para Base64.
 
-## Configuração das automações
+## Configuração visual das automações
 
-O Desktop permite importar e exportar a definição JSON completa de cada automação. Um exemplo funcional está em:
+A partir da versão 0.2.0, o fluxo principal de cadastro é visual. O assistente permite:
+
+- selecionar planilhas Excel, CSV e TXT pelo explorador de arquivos;
+- escolher a aba da planilha e visualizar uma amostra dos registros;
+- definir chaves simples ou compostas;
+- configurar SQLite, SQL Server, MySQL, PostgreSQL e Firebird;
+- testar fontes e consultas de leitura;
+- montar critérios de abertura, permanência, conclusão e suspensão com grupos E/OU;
+- cadastrar várias ações, canais e destinatários;
+- configurar grupos de contatos;
+- criar mensagens com variáveis do registro;
+- revisar e validar a automação antes de salvar.
+
+O JSON continua disponível na aba **Avançado**, além das funções de importação e exportação. Um exemplo funcional está em:
 
 ```text
 docs/examples/automation-clientes.json
 ```
 
+Consulte também `docs/visual-editor.md`.
+
 ## Segredos protegidos
 
-Use o utilitário da tela de canais ou o comando futuro de administração para armazenar campos sensíveis com DPAPI. Internamente, valores protegidos usam:
+As telas visuais de canais e bancos protegem automaticamente credenciais com DPAPI por usuário ou por máquina. Internamente, valores protegidos usam:
 
 ```text
 dpapi:<conteudo-base64>

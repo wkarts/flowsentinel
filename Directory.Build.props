@@ -8,7 +8,7 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
-    <RepositoryUrl>https://github.com/SEU_USUARIO/flowsentinel</RepositoryUrl>
+    <RepositoryUrl>https://github.com/wkarts/flowsentinel</RepositoryUrl>
     <Authors>Wallace</Authors>
     <Company>FlowSentinel</Company>
     <Product>FlowSentinel</Product>

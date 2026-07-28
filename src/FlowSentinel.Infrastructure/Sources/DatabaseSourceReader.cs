@@ -47,9 +47,11 @@ internal sealed partial class DatabaseSourceReader : IDataSourceReader
         }
 
         var records = new List<DataRecord>();
+        var rowNumber = 0;
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
+            rowNumber++;
             var fields = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             for (var index = 0; index < reader.FieldCount; index++)
             {
@@ -58,6 +60,7 @@ internal sealed partial class DatabaseSourceReader : IDataSourceReader
                     : NormalizeValue(reader.GetValue(index));
             }
 
+            fields["__rowNumber"] = rowNumber.ToString(CultureInfo.InvariantCulture);
             var key = SourceReaderHelpers.BuildKey(fields, source.KeyFields);
             records.Add(new DataRecord
             {

@@ -25,6 +25,34 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 - Conectores adicionais por plugins externos.
 - Administração centralizada opcional.
 
+## [0.2.0] - 2026-07-28
+
+### Adicionado
+
+- Assistente visual para criação e edição de automações sem necessidade de escrever JSON.
+- Cadastro visual de fontes Excel, CSV, TXT, SQLite, SQL Server, MySQL, PostgreSQL e Firebird.
+- Seleção de arquivos, listagem de abas do Excel, pré-visualização de registros e sugestão de campos-chave.
+- Teste de fontes e consultas antes da ativação.
+- Editor visual recursivo de critérios com grupos E/OU aninhados e negação.
+- Critérios separados de abertura, permanência, conclusão e suspensão.
+- Cadastro visual de ações, repetição, múltiplos canais, múltiplos destinatários e templates.
+- Cadastro visual de grupos de contatos com endereços por WhatsApp, e-mail e Telegram.
+- Formulários amigáveis para Evolution API V1/V2, Telegram, SMTP, Gmail, Outlook/Hotmail e Microsoft 365.
+- Proteção automática de tokens, senhas e connection strings com Windows DPAPI.
+- Serviço de design de fontes para amostra de dados e descoberta de abas.
+- Teste de integração para a pré-visualização de fontes CSV.
+
+### Alterado
+
+- O botão principal de edição agora abre o assistente visual; o editor JSON permanece como modo avançado.
+- A versão do produto, instalador e pipeline foi atualizada para `0.2.0`.
+
+### Corrigido
+
+- Corrigida a referência ao catálogo de canais no editor de ações, eliminando o erro de compilação `CS0103`.
+- Ajustado o carregamento visual de destinatários com canal opcional, eliminando o aviso de nulabilidade `CS8604`.
+- Ajustado o carregamento de parâmetros SQL nulos na grade do editor de fontes, eliminando o aviso de nulabilidade `CS8604`.
+
 ## [0.1.1] - 2026-07-28
 
 ### Corrigido
