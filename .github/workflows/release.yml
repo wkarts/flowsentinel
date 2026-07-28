@@ -1,0 +1,202 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versão SemVer sem o prefixo v'
+        required: true
+        type: string
+      prerelease:
+        description: 'Publicar como pré-lançamento'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    name: Validar versão
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            VERSION='${{ inputs.version }}'
+            PRERELEASE='${{ inputs.prerelease }}'
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+            [[ "$VERSION" == *-* ]] && PRERELEASE=true || PRERELEASE=false
+          fi
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "Versão inválida: $VERSION"; exit 1; }
+          PREFIX=$(sed -n 's:.*<VersionPrefix>\(.*\)</VersionPrefix>.*:\1:p' eng/Version.props)
+          SUFFIX=$(sed -n 's:.*<VersionSuffix>\(.*\)</VersionSuffix>.*:\1:p' eng/Version.props)
+          SOURCE_VERSION="$PREFIX"
+          [[ -n "$SUFFIX" ]] && SOURCE_VERSION="$PREFIX-$SUFFIX"
+          [[ "$SOURCE_VERSION" == "$VERSION" ]] || { echo "Tag/entrada $VERSION difere de eng/Version.props ($SOURCE_VERSION)."; exit 1; }
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Compilar e testar
+    needs: metadata
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - run: dotnet restore FlowSentinel.sln
+      - run: dotnet build FlowSentinel.sln -c Release --no-restore -p:Version=${{ needs.metadata.outputs.version }}
+      - run: dotnet test FlowSentinel.sln -c Release --no-build -p:Version=${{ needs.metadata.outputs.version }}
+
+  publish:
+    name: ${{ matrix.product }} ${{ matrix.rid }}
+    needs: [metadata, test]
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        product: [Desktop, Service]
+        rid: [win-x86, win-x64]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Restaurar
+        run: dotnet restore FlowSentinel.sln
+      - name: Publicar
+        shell: pwsh
+        run: |
+          $project = if ('${{ matrix.product }}' -eq 'Desktop') {
+            'src/FlowSentinel.Desktop/FlowSentinel.Desktop.csproj'
+          } else {
+            'src/FlowSentinel.Service/FlowSentinel.Service.csproj'
+          }
+          $output = 'artifacts/package'
+          dotnet publish $project -c Release -r '${{ matrix.rid }}' --self-contained true --no-restore `
+            -p:Version='${{ needs.metadata.outputs.version }}' -o $output
+          if ('${{ matrix.product }}' -eq 'Service') {
+            Copy-Item scripts/install-service.ps1 $output
+            Copy-Item scripts/uninstall-service.ps1 $output
+          }
+
+          if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_BASE64)) {
+            $certificate = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
+            [IO.File]::WriteAllBytes($certificate, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64))
+            ./scripts/sign-artifacts.ps1 -Path $output -CertificatePath $certificate `
+              -CertificatePassword $env:WINDOWS_CERTIFICATE_PASSWORD
+          }
+
+          Compress-Archive -Path "$output/*" -DestinationPath "FlowSentinel-${{ matrix.product }}-${{ needs.metadata.outputs.version }}-${{ matrix.rid }}.zip" -CompressionLevel Optimal
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: FlowSentinel-${{ matrix.product }}-${{ matrix.rid }}
+          path: FlowSentinel-*.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  installer:
+    name: Instalador ${{ matrix.rid }}
+    needs: [metadata, test]
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - rid: win-x86
+            allowed: x86compatible
+            mode: ''
+          - rid: win-x64
+            allowed: x64compatible
+            mode: x64compatible
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - run: dotnet restore FlowSentinel.sln
+      - name: Publicar Desktop
+        run: >-
+          dotnet publish src/FlowSentinel.Desktop/FlowSentinel.Desktop.csproj
+          -c Release -r ${{ matrix.rid }} --self-contained true --no-restore
+          -p:Version=${{ needs.metadata.outputs.version }}
+          -o artifacts/publish/${{ matrix.rid }}/desktop
+      - name: Compilar instalador
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { choco install innosetup --yes --no-progress }
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          $arguments = @(
+            'installer/FlowSentinel.Desktop.iss',
+            '/DAppVersion=${{ needs.metadata.outputs.version }}',
+            '/DSourceDir="..\artifacts\publish\${{ matrix.rid }}\desktop"',
+            '/DArchitecturesAllowed="${{ matrix.allowed }}"',
+            '/F"FlowSentinel-Setup-${{ needs.metadata.outputs.version }}-${{ matrix.rid }}"'
+          )
+          if ('${{ matrix.rid }}' -eq 'win-x64') {
+            $arguments += '/DArchitecturesInstallIn64BitMode="x64compatible"'
+          }
+          & $iscc @arguments
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao compilar o instalador.' }
+
+          if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_BASE64)) {
+            $certificate = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
+            [IO.File]::WriteAllBytes($certificate, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64))
+            Get-ChildItem artifacts/installer/*.exe | ForEach-Object {
+              ./scripts/sign-artifacts.ps1 -Path $_.FullName -CertificatePath $certificate `
+                -CertificatePassword $env:WINDOWS_CERTIFICATE_PASSWORD
+            }
+          }
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: FlowSentinel-Setup-${{ matrix.rid }}
+          path: artifacts/installer/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publicar GitHub Release
+    needs: [metadata, publish, installer]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifacts/release
+          merge-multiple: true
+      - name: Gerar checksums
+        working-directory: artifacts/release
+        run: sha256sum *.zip *.exe > SHA256SUMS.txt
+      - name: Publicar release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ needs.metadata.outputs.version }}
+          name: FlowSentinel v${{ needs.metadata.outputs.version }}
+          generate_release_notes: true
+          prerelease: ${{ needs.metadata.outputs.prerelease }}
+          files: |
+            artifacts/release/*.zip
+            artifacts/release/*.exe
+            artifacts/release/SHA256SUMS.txt

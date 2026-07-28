@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: America/Bahia
+    open-pull-requests-limit: 10
+    groups:
+      microsoft-dotnet:
+        patterns: ['Microsoft.*']
+      tests:
+        patterns: ['xunit*', 'coverlet*']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:30'
+      timezone: America/Bahia

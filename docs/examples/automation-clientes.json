@@ -1,0 +1,169 @@
+{
+  "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "name": "Exemplo - clientes pendentes",
+  "description": "Monitora vários clientes na mesma planilha CSV e mantém uma ocorrência independente por ID.",
+  "enabled": true,
+  "intervalSeconds": 60,
+  "priority": 100,
+  "missingRecordBehavior": "Resolve",
+  "resolveWhenPersistenceFails": true,
+  "sources": [
+    {
+      "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "alias": "clientes",
+      "name": "Clientes",
+      "type": "Csv",
+      "isPrimary": true,
+      "enabled": true,
+      "keyFields": ["Id"],
+      "configuration": {
+        "filePath": "samples\\clientes.csv",
+        "delimiter": ";",
+        "quote": "\"",
+        "encoding": "utf-8",
+        "hasHeader": true,
+        "ignoreEmptyLines": true
+      }
+    }
+  ],
+  "entryRules": {
+    "type": "Entry",
+    "root": {
+      "operator": "And",
+      "negate": false,
+      "rules": [
+        {
+          "field": "Status",
+          "operator": "In",
+          "expectedValue": "Pendente|Atrasado",
+          "caseSensitive": false,
+          "culture": "pt-BR"
+        },
+        {
+          "field": "Vencimento",
+          "operator": "LessThanOrEqual",
+          "expectedValue": "{{today}}",
+          "caseSensitive": false,
+          "culture": "pt-BR"
+        }
+      ],
+      "groups": []
+    }
+  },
+  "persistenceRules": {
+    "type": "Persistence",
+    "root": {
+      "operator": "And",
+      "negate": false,
+      "rules": [
+        {
+          "field": "Status",
+          "operator": "In",
+          "expectedValue": "Pendente|Atrasado",
+          "caseSensitive": false,
+          "culture": "pt-BR"
+        }
+      ],
+      "groups": []
+    }
+  },
+  "completionRules": {
+    "type": "Completion",
+    "root": {
+      "operator": "Or",
+      "negate": false,
+      "rules": [
+        {
+          "field": "Status",
+          "operator": "In",
+          "expectedValue": "Pago|Concluido|Concluído|Cancelado",
+          "caseSensitive": false,
+          "culture": "pt-BR"
+        }
+      ],
+      "groups": []
+    }
+  },
+  "suspensionRules": null,
+  "actions": [
+    {
+      "id": "cccccccc-cccc-cccc-cccc-ccccccccccc1",
+      "name": "Aviso inicial local",
+      "enabled": true,
+      "trigger": "OnOpen",
+      "delaySeconds": 0,
+      "repeat": {
+        "enabled": false,
+        "intervalSeconds": 3600,
+        "maxExecutions": 1
+      },
+      "channelStrategy": "All",
+      "successPolicy": "AllDeliveries",
+      "conditions": null,
+      "subjectTemplate": "Pendência de {{Cliente}}",
+      "messageTemplate": "O cliente {{Cliente}} está com a situação {{Status}}. Vencimento: {{Vencimento}}. Registro: {{record.key}}.",
+      "channels": [
+        {
+          "channelConfigurationId": "11111111-1111-1111-1111-111111111111",
+          "channelType": "LocalWindows",
+          "order": 1,
+          "required": true
+        }
+      ],
+      "recipients": []
+    },
+    {
+      "id": "cccccccc-cccc-cccc-cccc-ccccccccccc2",
+      "name": "Repetição enquanto pendente",
+      "enabled": true,
+      "trigger": "WhileActive",
+      "delaySeconds": 0,
+      "repeat": {
+        "enabled": true,
+        "intervalSeconds": 3600,
+        "maxExecutions": 5
+      },
+      "channelStrategy": "All",
+      "successPolicy": "AllDeliveries",
+      "conditions": null,
+      "subjectTemplate": "Pendência ainda ativa: {{Cliente}}",
+      "messageTemplate": "A situação de {{Cliente}} permanece como {{Status}} em {{now}}.",
+      "channels": [
+        {
+          "channelConfigurationId": "11111111-1111-1111-1111-111111111111",
+          "channelType": "LocalWindows",
+          "order": 1,
+          "required": true
+        }
+      ],
+      "recipients": []
+    },
+    {
+      "id": "cccccccc-cccc-cccc-cccc-ccccccccccc3",
+      "name": "Aviso de conclusão",
+      "enabled": true,
+      "trigger": "OnResolved",
+      "delaySeconds": 0,
+      "repeat": {
+        "enabled": false,
+        "intervalSeconds": 3600,
+        "maxExecutions": 1
+      },
+      "channelStrategy": "All",
+      "successPolicy": "AllDeliveries",
+      "conditions": null,
+      "subjectTemplate": "Ocorrência concluída: {{Cliente}}",
+      "messageTemplate": "A ocorrência de {{Cliente}} foi concluída. Situação atual: {{Status}}.",
+      "channels": [
+        {
+          "channelConfigurationId": "11111111-1111-1111-1111-111111111111",
+          "channelType": "LocalWindows",
+          "order": 1,
+          "required": true
+        }
+      ],
+      "recipients": []
+    }
+  ],
+  "contactGroups": []
+}

@@ -1,0 +1,36 @@
+name: Relatar falha
+description: Informe uma falha reproduzível no FlowSentinel
+title: '[BUG] '
+labels: ['bug', 'triage']
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Descrição
+      description: O que aconteceu e qual era o resultado esperado?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versão
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: architecture
+    attributes:
+      label: Arquitetura
+      options: [win-x86, win-x64]
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para reproduzir
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs sem credenciais

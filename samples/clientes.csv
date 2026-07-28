@@ -1,0 +1,4 @@
+Id;Cliente;Status;Vencimento;Telefone;Email;Responsavel
+1001;Cliente A;Pendente;2026-07-20;5575999999999;clientea@example.com;João
+1002;Cliente B;Pago;2026-07-21;5575888888888;clienteb@example.com;Maria
+1003;Cliente C;Atrasado;2026-07-15;5575777777777;clientec@example.com;Carlos

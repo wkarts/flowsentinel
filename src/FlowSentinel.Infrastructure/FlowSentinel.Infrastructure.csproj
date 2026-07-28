@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>FlowSentinel.Infrastructure</RootNamespace>
+    <AssemblyName>FlowSentinel.Infrastructure</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FlowSentinel.Domain\FlowSentinel.Domain.csproj" />
+    <ProjectReference Include="..\FlowSentinel.Application\FlowSentinel.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+    <PackageReference Include="System.Text.Encoding.CodePages" />
+    <PackageReference Include="ClosedXML" />
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="MySqlConnector" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="FirebirdSql.Data.FirebirdClient" />
+  </ItemGroup>
+</Project>
