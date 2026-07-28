@@ -83,7 +83,7 @@ internal sealed class ActionEditorForm : Form
 
         _channels.CheckOnClick = true;
         _channels.Dock = DockStyle.Fill;
-        foreach (var channel in availableChannels.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
+        foreach (var channel in _availableChannels.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
         {
             _channels.Items.Add(new ChannelListItem(channel));
         }
@@ -291,7 +291,12 @@ internal sealed class ActionEditorForm : Form
 
         foreach (var recipient in definition.Recipients)
         {
-            _recipients.Rows.Add(recipient.Type, recipient.ChannelType, recipient.Value, recipient.DisplayName);
+            var rowIndex = _recipients.Rows.Add();
+            var row = _recipients.Rows[rowIndex];
+            row.Cells["RecipientType"].Value = recipient.Type;
+            row.Cells["ChannelType"].Value = recipient.ChannelType;
+            row.Cells["RecipientValue"].Value = recipient.Value;
+            row.Cells["DisplayName"].Value = recipient.DisplayName;
         }
 
         _conditions.Configure(

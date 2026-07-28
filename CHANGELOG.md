@@ -47,6 +47,12 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 - O botão principal de edição agora abre o assistente visual; o editor JSON permanece como modo avançado.
 - A versão do produto, instalador e pipeline foi atualizada para `0.2.0`.
 
+### Corrigido
+
+- Corrigida a referência ao catálogo de canais no editor de ações, eliminando o erro de compilação `CS0103`.
+- Ajustado o carregamento visual de destinatários com canal opcional, eliminando o aviso de nulabilidade `CS8604`.
+- Ajustado o carregamento de parâmetros SQL nulos na grade do editor de fontes, eliminando o aviso de nulabilidade `CS8604`.
+
 ## [0.1.1] - 2026-07-28
 
 ### Corrigido

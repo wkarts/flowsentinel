@@ -690,7 +690,12 @@ internal sealed class SourceEditorForm : Form
                 {
                     foreach (var property in parameters.EnumerateObject())
                     {
-                        _parameters.Rows.Add(property.Name, property.Value.ValueKind == JsonValueKind.Null ? null : property.Value.ToString());
+                        var rowIndex = _parameters.Rows.Add();
+                        var row = _parameters.Rows[rowIndex];
+                        row.Cells["ParameterName"].Value = property.Name;
+                        row.Cells["ParameterValue"].Value = property.Value.ValueKind == JsonValueKind.Null
+                            ? null
+                            : property.Value.ToString();
                     }
                 }
                 break;
