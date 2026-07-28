@@ -25,6 +25,33 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 - Conectores adicionais por plugins externos.
 - Administração centralizada opcional.
 
+## [0.3.0] - 2026-07-28
+
+### Adicionado
+
+- Assistente guiado para criar um único monitoramento administrativo para toda uma planilha complexa.
+- Análise estrutural antes da criação, com quantidade de clientes, seções, células monitoradas, abas e avisos.
+- Modo Excel `SectionedMatrix` para reconhecer vários blocos, cabeçalhos repetidos, empresas, colaboradores, períodos e balanços na mesma aba.
+- Seleção automática da aba anual mais recente, seleção fixa ou leitura de todas as abas compatíveis.
+- Registros normalizados por empresa e por célula de situação, sem exigir uma automação por cliente.
+- Cálculo configurável da situação atual do cliente, respeitando por padrão o mês corrente da aba anual e ignorando colunas auxiliares como `BAL`.
+- Indicadores de clientes por situação atual e células por situação/período.
+- Agregações gerais, por seção/regime e por colaborador.
+- Painel administrativo com visualização semelhante à planilha original, preservando posição, conteúdo, larguras de colunas, alturas de linhas, cores e destaques.
+- Filtros por tipo, empresa, código, seção, colaborador, período e situação.
+- Linha de base local e comparação detalhada de inclusões, remoções e alterações.
+- Legenda administrativa configurável para códigos de situação.
+- Notificações específicas para mudança de situação mensal, situação atual, colaborador, quantidades, cores e destaques.
+- Suporte a variáveis `{{previous.Campo}}` nos templates de mensagens.
+- Reconhecimento de listas especiais sem código, colaborador ou períodos, como blocos de MEI e empresas sem movimento.
+- Testes para planilhas com blocos, períodos repetidos, listas sem períodos e totais administrativos.
+
+### Alterado
+
+- A tela principal passou a destacar o monitoramento guiado e o painel de planilhas como fluxos principais.
+- O leitor Excel de tabela simples foi preservado e passou a coexistir com o modo administrativo.
+- A versão do produto, instalador e pipeline foi atualizada para `0.3.0`.
+
 ## [0.2.3] - 2026-07-28
 
 ### Adicionado

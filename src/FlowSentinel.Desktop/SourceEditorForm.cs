@@ -26,6 +26,27 @@ internal sealed class SourceEditorForm : Form
     private readonly ComboBox _worksheet = new();
     private readonly NumericUpDown _headerRow = new();
     private readonly CheckBox _ignoreEmpty = new();
+    private readonly ComboBox _excelMode = new();
+    private readonly ComboBox _worksheetSelection = new();
+    private readonly TextBox _worksheetPattern = new();
+    private readonly TextBox _headerMarker = new();
+    private readonly NumericUpDown _numberColumn = new();
+    private readonly NumericUpDown _sectionColumn = new();
+    private readonly NumericUpDown _companyColumn = new();
+    private readonly NumericUpDown _codeColumn = new();
+    private readonly NumericUpDown _collaboratorColumn = new();
+    private readonly NumericUpDown _firstPeriodColumn = new();
+    private readonly NumericUpDown _lastPeriodColumn = new();
+    private readonly CheckBox _includeBlankStatuses = new();
+    private readonly CheckBox _includeFormatting = new();
+    private readonly CheckBox _generateCompanyRecords = new();
+    private readonly CheckBox _generateAggregateRecords = new();
+    private readonly CheckBox _aggregateBySection = new();
+    private readonly CheckBox _aggregateByCollaborator = new();
+    private readonly TextBox _standaloneSectionTitles = new();
+    private readonly TextBox _sectionsWithoutPeriods = new();
+    private readonly TextBox _currentStatusExcludedPeriods = new();
+    private readonly ComboBox _currentStatusMode = new();
 
     private readonly ComboBox _delimiter = new();
     private readonly TextBox _quote = new();
@@ -49,6 +70,7 @@ internal sealed class SourceEditorForm : Form
     private readonly DataGridView _parameters = new();
     private readonly ComboBox _protectionScope = new();
     private readonly List<string> _previewColumns = [];
+    private readonly Dictionary<string, string> _statusLabels = new(StringComparer.OrdinalIgnoreCase);
 
     internal DataSourceDefinition? Definition { get; private set; }
 
@@ -92,6 +114,43 @@ internal sealed class SourceEditorForm : Form
         _ignoreEmpty.Text = "Ignorar linhas vazias";
         _ignoreEmpty.Checked = true;
         _ignoreEmpty.AutoSize = true;
+
+        _excelMode.DropDownStyle = ComboBoxStyle.DropDownList;
+        _excelMode.Items.AddRange(["Tabela simples", "Matriz com múltiplas seções e períodos"]);
+        _excelMode.SelectedIndex = 0;
+        _excelMode.SelectedIndexChanged += (_, _) => RebuildConfigurationPanel();
+
+        _worksheetSelection.DropDownStyle = ComboBoxStyle.DropDownList;
+        _worksheetSelection.Items.AddRange(["Aba selecionada", "Aba mais recente pelo ano", "Todas as abas que possuem ano"]);
+        _worksheetSelection.SelectedIndex = 0;
+        _worksheetSelection.SelectedIndexChanged += (_, _) => RebuildConfigurationPanel();
+        _worksheetPattern.Text = @"(?<year>20\d{2})";
+        _currentStatusMode.DropDownStyle = ComboBoxStyle.DropDownList;
+        _currentStatusMode.Items.AddRange(["Até o mês atual do ano da aba", "Último período preenchido"]);
+        _currentStatusMode.SelectedIndex = 0;
+        _headerMarker.Text = "Nº";
+        ConfigureColumnSelector(_numberColumn, 1);
+        ConfigureColumnSelector(_sectionColumn, 2);
+        ConfigureColumnSelector(_companyColumn, 2);
+        ConfigureColumnSelector(_codeColumn, 3);
+        ConfigureColumnSelector(_collaboratorColumn, 4);
+        ConfigureColumnSelector(_firstPeriodColumn, 5);
+        ConfigureColumnSelector(_lastPeriodColumn, 20);
+        _includeBlankStatuses.Text = "Incluir situações vazias";
+        _includeFormatting.Text = "Monitorar cores e destaques";
+        _generateCompanyRecords.Text = "Gerar registro por empresa";
+        _generateAggregateRecords.Text = "Gerar totais por situação";
+        _aggregateBySection.Text = "Agrupar totais por seção/regime";
+        _aggregateByCollaborator.Text = "Agrupar totais por colaborador";
+        foreach (var flag in new[] { _includeBlankStatuses, _includeFormatting, _generateCompanyRecords, _generateAggregateRecords, _aggregateBySection, _aggregateByCollaborator })
+        {
+            flag.AutoSize = true;
+            flag.Checked = true;
+        }
+        _standaloneSectionTitles.Text = "SIMPLES|EMPRESAS MEI|SEM MOVIMENTO";
+        _sectionsWithoutPeriods.Text = "EMPRESAS MEI|SEM MOVIMENTO";
+        _currentStatusExcludedPeriods.Text = "BAL";
+        _currentStatusMode.SelectedIndex = 0;
 
         _delimiter.DropDownStyle = ComboBoxStyle.DropDown;
         _delimiter.Items.AddRange([";", ",", "|", "\\t"]);
@@ -286,16 +345,66 @@ internal sealed class SourceEditorForm : Form
         var table = CreateEditorTable();
         var filePanel = CreateBrowsePanel(_filePath, "Planilhas Excel (*.xlsx;*.xlsm)|*.xlsx;*.xlsm|Todos os arquivos (*.*)|*.*", async () => await LoadWorksheetsAsync());
         AddEditorRow(table, "Arquivo", filePanel);
-        var sheets = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
-        _worksheet.Width = 280;
-        var load = new Button { Text = "Listar abas", AutoSize = true };
-        load.Click += async (_, _) => await LoadWorksheetsAsync();
-        sheets.Controls.Add(_worksheet);
-        sheets.Controls.Add(load);
-        AddEditorRow(table, "Planilha/aba", sheets);
-        AddEditorRow(table, "Linha do cabeçalho", _headerRow);
-        AddEditorRow(table, "Leitura", _ignoreEmpty);
-        return WrapWithHelp(table, "Selecione a planilha, escolha a aba e informe quais colunas identificam cada registro.");
+        AddEditorRow(table, "Modo de leitura", _excelMode);
+
+        if (_excelMode.SelectedIndex != 1)
+        {
+            var sheets = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
+            _worksheet.Width = 280;
+            var load = new Button { Text = "Listar abas", AutoSize = true };
+            load.Click += async (_, _) => await LoadWorksheetsAsync();
+            sheets.Controls.Add(_worksheet);
+            sheets.Controls.Add(load);
+            AddEditorRow(table, "Planilha/aba", sheets);
+            AddEditorRow(table, "Linha do cabeçalho", _headerRow);
+            AddEditorRow(table, "Leitura", _ignoreEmpty);
+            return WrapWithHelp(table, "Tabela simples pressupõe uma única linha de cabeçalho e um registro por linha.");
+        }
+
+        AddEditorRow(table, "Seleção da aba", _worksheetSelection);
+        if (_worksheetSelection.SelectedIndex == 0)
+        {
+            var sheets = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
+            _worksheet.Width = 280;
+            var load = new Button { Text = "Listar abas", AutoSize = true };
+            load.Click += async (_, _) => await LoadWorksheetsAsync();
+            sheets.Controls.Add(_worksheet);
+            sheets.Controls.Add(load);
+            AddEditorRow(table, "Planilha/aba", sheets);
+        }
+        else
+        {
+            AddEditorRow(table, "Padrão para localizar o ano", _worksheetPattern);
+        }
+
+        var profileButton = new Button { Text = "Aplicar perfil contábil RP-102", AutoSize = true };
+        profileButton.Click += (_, _) => ApplyAccountingMatrixProfile();
+        AddEditorRow(table, "Configuração rápida", profileButton);
+        AddEditorRow(table, "Marcador do cabeçalho", _headerMarker);
+        AddEditorRow(table, "Coluna de número", _numberColumn);
+        AddEditorRow(table, "Coluna da seção", _sectionColumn);
+        AddEditorRow(table, "Coluna da empresa", _companyColumn);
+        AddEditorRow(table, "Coluna do código", _codeColumn);
+        AddEditorRow(table, "Coluna do colaborador", _collaboratorColumn);
+        AddEditorRow(table, "Primeira coluna de período", _firstPeriodColumn);
+        AddEditorRow(table, "Última coluna de período", _lastPeriodColumn);
+        AddEditorRow(table, "Títulos de seções independentes", _standaloneSectionTitles);
+        AddEditorRow(table, "Seções sem períodos", _sectionsWithoutPeriods);
+        AddEditorRow(table, "Cálculo da situação atual", _currentStatusMode);
+        AddEditorRow(table, "Ignorar na situação atual", _currentStatusExcludedPeriods);
+
+        var flags = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
+        flags.Controls.Add(_includeBlankStatuses);
+        flags.Controls.Add(_includeFormatting);
+        flags.Controls.Add(_generateCompanyRecords);
+        flags.Controls.Add(_generateAggregateRecords);
+        flags.Controls.Add(_aggregateBySection);
+        flags.Controls.Add(_aggregateByCollaborator);
+        AddEditorRow(table, "Registros gerados", flags);
+
+        return WrapWithHelp(
+            table,
+            "Este modo reconhece várias tabelas na mesma aba, cabeçalhos repetidos, períodos mensais, balanços, cores e listas especiais. Cada célula de situação vira um registro monitorável; também são gerados registros por empresa e totais por status.");
     }
 
     private Control BuildCsvPanel()
@@ -466,7 +575,11 @@ internal sealed class SourceEditorForm : Form
             _previewColumns.AddRange(result.Columns.Where(x => !x.StartsWith("__", StringComparison.Ordinal)));
             _preview.DataSource = table;
             _previewSummary.Text = $"{result.TotalRead} registro(s) lido(s); mostrando até 100. Tempo: {result.Duration.TotalMilliseconds:N0} ms. Colunas: {string.Join(", ", result.Columns)}";
-            if (string.IsNullOrWhiteSpace(_keys.Text) && result.Columns.Count > 0)
+            if (SelectedSourceType() == SourceType.Excel && _excelMode.SelectedIndex == 1)
+            {
+                _keys.Text = "__recordKey";
+            }
+            else if (string.IsNullOrWhiteSpace(_keys.Text) && result.Columns.Count > 0)
             {
                 var suggested = result.Columns.FirstOrDefault(x => !x.StartsWith("__", StringComparison.Ordinal)) ?? result.Columns[0];
                 _keys.Text = suggested;
@@ -520,6 +633,11 @@ internal sealed class SourceEditorForm : Form
     {
         var type = SelectedSourceType();
         var keys = _keys.Text.Split([',', ';', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        if (type == SourceType.Excel && _excelMode.SelectedIndex == 1 && keys.Count == 0)
+        {
+            keys.Add("__recordKey");
+            _keys.Text = "__recordKey";
+        }
         if (requireKeys && keys.Count == 0)
         {
             throw new InvalidOperationException("Informe ao menos um campo-chave para identificar cada registro.");
@@ -527,14 +645,7 @@ internal sealed class SourceEditorForm : Form
 
         object settings = type switch
         {
-            SourceType.Excel => new
-            {
-                filePath = Required(_filePath.Text, "Informe o arquivo Excel."),
-                worksheet = string.IsNullOrWhiteSpace(_worksheet.Text) ? null : _worksheet.Text.Trim(),
-                headerRow = (int)_headerRow.Value,
-                ignoreEmptyRows = _ignoreEmpty.Checked,
-                designerFields = _previewColumns
-            },
+            SourceType.Excel => BuildExcelSettings(),
             SourceType.Csv => new
             {
                 filePath = Required(_filePath.Text, "Informe o arquivo CSV."),
@@ -571,6 +682,85 @@ internal sealed class SourceEditorForm : Form
             KeyFields = keys,
             Configuration = document.RootElement.Clone()
         };
+    }
+
+    private object BuildExcelSettings()
+    {
+        var matrixMode = _excelMode.SelectedIndex == 1;
+        return new
+        {
+            filePath = Required(_filePath.Text, "Informe o arquivo Excel."),
+            worksheet = string.IsNullOrWhiteSpace(_worksheet.Text) ? null : _worksheet.Text.Trim(),
+            headerRow = (int)_headerRow.Value,
+            ignoreEmptyRows = _ignoreEmpty.Checked,
+            mode = matrixMode ? "SectionedMatrix" : "Table",
+            worksheetSelection = _worksheetSelection.SelectedIndex switch
+            {
+                1 => "LatestYear",
+                2 => "AllMatching",
+                _ => "Fixed"
+            },
+            worksheetPattern = string.IsNullOrWhiteSpace(_worksheetPattern.Text) ? @"(?<year>20\d{2})" : _worksheetPattern.Text.Trim(),
+            matrix = new
+            {
+                headerMarker = string.IsNullOrWhiteSpace(_headerMarker.Text) ? "Nº" : _headerMarker.Text.Trim(),
+                numberColumn = (int)_numberColumn.Value,
+                sectionColumn = (int)_sectionColumn.Value,
+                companyColumn = (int)_companyColumn.Value,
+                codeColumn = (int)_codeColumn.Value,
+                collaboratorColumn = (int)_collaboratorColumn.Value,
+                firstPeriodColumn = (int)_firstPeriodColumn.Value,
+                lastPeriodColumn = (int)_lastPeriodColumn.Value,
+                includeBlankStatuses = _includeBlankStatuses.Checked,
+                includeFormatting = _includeFormatting.Checked,
+                generateCompanyRecords = _generateCompanyRecords.Checked,
+                generateAggregateRecords = _generateAggregateRecords.Checked,
+                aggregateBySection = _aggregateBySection.Checked,
+                aggregateByCollaborator = _aggregateByCollaborator.Checked,
+                autoDetectStandaloneSections = true,
+                standaloneSectionTitles = _standaloneSectionTitles.Text.Trim(),
+                sectionsWithoutPeriods = _sectionsWithoutPeriods.Text.Trim(),
+                currentStatusExcludedPeriods = _currentStatusExcludedPeriods.Text.Trim(),
+                currentStatusMode = _currentStatusMode.SelectedIndex == 1 ? "LastFilled" : "CalendarPeriod",
+                statusLabels = _statusLabels
+            },
+            designerFields = _previewColumns
+        };
+    }
+
+    private void ApplyAccountingMatrixProfile()
+    {
+        _excelMode.SelectedIndex = 1;
+        _worksheetSelection.SelectedIndex = 1;
+        _worksheetPattern.Text = @"(?<year>20\d{2})";
+        _currentStatusMode.SelectedIndex = 0;
+        _headerMarker.Text = "Nº";
+        _numberColumn.Value = 1;
+        _sectionColumn.Value = 2;
+        _companyColumn.Value = 2;
+        _codeColumn.Value = 3;
+        _collaboratorColumn.Value = 4;
+        _firstPeriodColumn.Value = 5;
+        _lastPeriodColumn.Value = 20;
+        _includeBlankStatuses.Checked = true;
+        _includeFormatting.Checked = true;
+        _generateCompanyRecords.Checked = true;
+        _generateAggregateRecords.Checked = true;
+        _aggregateBySection.Checked = true;
+        _aggregateByCollaborator.Checked = true;
+        _standaloneSectionTitles.Text = "SIMPLES|EMPRESAS MEI|SEM MOVIMENTO";
+        _sectionsWithoutPeriods.Text = "EMPRESAS MEI|SEM MOVIMENTO";
+        _currentStatusExcludedPeriods.Text = "BAL";
+        _currentStatusMode.SelectedIndex = 0;
+        _keys.Text = "__recordKey";
+        RebuildConfigurationPanel();
+    }
+
+    private static void ConfigureColumnSelector(NumericUpDown control, int value)
+    {
+        control.Minimum = 1;
+        control.Maximum = 1000;
+        control.Value = value;
     }
 
     private object BuildDatabaseSettings(bool protectSecrets)
@@ -669,6 +859,48 @@ internal sealed class SourceEditorForm : Form
             case SourceType.Excel:
                 _worksheet.Text = GetString("worksheet");
                 _headerRow.Value = Math.Clamp(GetInt("headerRow", 1), 1, 100000);
+                _excelMode.SelectedIndex = GetString("mode", "Table").Equals("SectionedMatrix", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+                _worksheetSelection.SelectedIndex = GetString("worksheetSelection", "Fixed") switch
+                {
+                    "LatestYear" => 1,
+                    "AllMatching" => 2,
+                    _ => 0
+                };
+                _worksheetPattern.Text = GetString("worksheetPattern", @"(?<year>20\d{2})");
+                if (configuration.TryGetProperty("matrix", out var matrix) && matrix.ValueKind == JsonValueKind.Object)
+                {
+                    string MatrixString(string name, string fallback = "") => matrix.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? fallback : fallback;
+                    bool MatrixBool(string name, bool fallback) => matrix.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : fallback;
+                    int MatrixInt(string name, int fallback) => matrix.TryGetProperty(name, out var value) && value.TryGetInt32(out var result) ? result : fallback;
+                    _headerMarker.Text = MatrixString("headerMarker", "Nº");
+                    _numberColumn.Value = Math.Clamp(MatrixInt("numberColumn", 1), 1, 1000);
+                    _sectionColumn.Value = Math.Clamp(MatrixInt("sectionColumn", 2), 1, 1000);
+                    _companyColumn.Value = Math.Clamp(MatrixInt("companyColumn", 2), 1, 1000);
+                    _codeColumn.Value = Math.Clamp(MatrixInt("codeColumn", 3), 1, 1000);
+                    _collaboratorColumn.Value = Math.Clamp(MatrixInt("collaboratorColumn", 4), 1, 1000);
+                    _firstPeriodColumn.Value = Math.Clamp(MatrixInt("firstPeriodColumn", 5), 1, 1000);
+                    _lastPeriodColumn.Value = Math.Clamp(MatrixInt("lastPeriodColumn", 20), 1, 1000);
+                    _includeBlankStatuses.Checked = MatrixBool("includeBlankStatuses", true);
+                    _includeFormatting.Checked = MatrixBool("includeFormatting", true);
+                    _generateCompanyRecords.Checked = MatrixBool("generateCompanyRecords", true);
+                    _generateAggregateRecords.Checked = MatrixBool("generateAggregateRecords", true);
+                    _aggregateBySection.Checked = MatrixBool("aggregateBySection", true);
+                    _aggregateByCollaborator.Checked = MatrixBool("aggregateByCollaborator", true);
+                    _standaloneSectionTitles.Text = MatrixString("standaloneSectionTitles", "SIMPLES|EMPRESAS MEI|SEM MOVIMENTO");
+                    _sectionsWithoutPeriods.Text = MatrixString("sectionsWithoutPeriods", "EMPRESAS MEI|SEM MOVIMENTO");
+                    _currentStatusExcludedPeriods.Text = MatrixString("currentStatusExcludedPeriods", "BAL");
+                    _currentStatusMode.SelectedIndex = MatrixString("currentStatusMode", "CalendarPeriod").Equals("LastFilled", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+                    _statusLabels.Clear();
+                    if (matrix.TryGetProperty("statusLabels", out var statusLabels) && statusLabels.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var property in statusLabels.EnumerateObject())
+                        {
+                            _statusLabels[property.Name] = property.Value.ValueKind == JsonValueKind.String
+                                ? property.Value.GetString() ?? string.Empty
+                                : property.Value.ToString();
+                        }
+                    }
+                }
                 break;
             case SourceType.Csv:
                 _delimiter.Text = GetString("delimiter", ";") == "\t" ? "\\t" : GetString("delimiter", ";");

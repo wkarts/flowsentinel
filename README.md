@@ -71,7 +71,7 @@ Na primeira execução é criado o banco em:
 ## Publicação local
 
 ```powershell
-./scripts/publish.ps1 -Version 0.2.3
+./scripts/publish.ps1 -Version 0.3.0
 ```
 
 Os arquivos serão gerados em `artifacts/`.
@@ -88,8 +88,8 @@ Os arquivos serão gerados em `artifacts/`.
 3. Crie e envie a tag:
 
 ```powershell
-git tag v0.2.3
-git push origin v0.2.3
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 O workflow de release irá:
@@ -136,6 +136,22 @@ docs/examples/automation-clientes.json
 ```
 
 Consulte também `docs/visual-editor.md`.
+
+
+## Monitoramento administrativo de planilhas complexas
+
+A versão 0.3.0 adiciona um fluxo específico para controles com várias seções, empresas, períodos, situações e cores na mesma aba.
+
+Na tela principal:
+
+- **Novo monitoramento guiado** cria uma única automação para toda a planilha;
+- **Painel de planilhas** exibe a estrutura original, indicadores, empresas, situações e mudanças;
+- **Legenda de situações** permite explicar códigos como `X`, `SM`, `M` e outros sem pressupor seu significado;
+- **Gravar linha de base** e **Comparar alterações** mostram exatamente o que mudou entre duas leituras.
+
+O sistema gera registros por empresa, por célula de período e por indicador agregado. Portanto, não é necessário cadastrar uma automação por cliente.
+
+Consulte `docs/complex-workbook-monitoring.md` e o exemplo `docs/examples/source-planilha-matriz-contabil.json`.
 
 ## Segredos protegidos
 

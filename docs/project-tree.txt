@@ -1,4 +1,4 @@
-FlowSentinel 0.2.3 - Árvore do projeto
+FlowSentinel 0.3.0 - Árvore do projeto
 
 .editorconfig
 .gitattributes
@@ -19,9 +19,11 @@ Directory.Packages.props
 docs/architecture.md
 docs/automation-schema.md
 docs/channel-settings.md
+docs/complex-workbook-monitoring.md
 docs/delivery-standard.md
 docs/desktop-experience.md
 docs/examples/automation-clientes.json
+docs/examples/source-planilha-matriz-contabil.json
 docs/github-flow.md
 docs/project-tree.txt
 docs/release-process.md
@@ -55,9 +57,11 @@ src/FlowSentinel.Application/RuleEngine.cs
 src/FlowSentinel.Application/SecretProtectionScope.cs
 src/FlowSentinel.Application/StoreModels.cs
 src/FlowSentinel.Application/TemplateRenderer.cs
+src/FlowSentinel.Application/WorkbookMonitoringModels.cs
 src/FlowSentinel.Application/WorkerRuntimeSettings.cs
 src/FlowSentinel.Application/Workers.cs
 src/FlowSentinel.Desktop/AboutForm.cs
+src/FlowSentinel.Desktop/AccountingMonitorWizardForm.cs
 src/FlowSentinel.Desktop/ActionEditorForm.cs
 src/FlowSentinel.Desktop/app.manifest
 src/FlowSentinel.Desktop/ApplicationMetadata.cs
@@ -89,9 +93,11 @@ src/FlowSentinel.Desktop/SettingsForm.cs
 src/FlowSentinel.Desktop/SourceEditorForm.cs
 src/FlowSentinel.Desktop/SplashForm.cs
 src/FlowSentinel.Desktop/StartupRegistration.cs
+src/FlowSentinel.Desktop/StatusDictionaryForm.cs
 src/FlowSentinel.Desktop/TrayApplicationContext.cs
 src/FlowSentinel.Desktop/VisualEditorSupport.cs
 src/FlowSentinel.Desktop/WindowsServiceManager.cs
+src/FlowSentinel.Desktop/WorkbookMonitorForm.cs
 src/FlowSentinel.Domain/AutomationDefinition.cs
 src/FlowSentinel.Domain/Enums.cs
 src/FlowSentinel.Domain/FlowSentinel.Domain.csproj
@@ -112,10 +118,13 @@ src/FlowSentinel.Infrastructure/Persistence/FlowStore.cs
 src/FlowSentinel.Infrastructure/SecretProtector.cs
 src/FlowSentinel.Infrastructure/Sources/CsvSourceReader.cs
 src/FlowSentinel.Infrastructure/Sources/DatabaseSourceReader.cs
+src/FlowSentinel.Infrastructure/Sources/ExcelSectionedMatrixParser.cs
 src/FlowSentinel.Infrastructure/Sources/ExcelSourceReader.cs
+src/FlowSentinel.Infrastructure/Sources/ExcelSourceSettings.cs
 src/FlowSentinel.Infrastructure/Sources/SourceDesignerService.cs
 src/FlowSentinel.Infrastructure/Sources/SourceReaderHelpers.cs
 src/FlowSentinel.Infrastructure/Sources/TextSourceReader.cs
+src/FlowSentinel.Infrastructure/Sources/WorkbookMonitoringService.cs
 src/FlowSentinel.Service/FlowSentinel.Service.csproj
 src/FlowSentinel.Service/Program.cs
 tests/FlowSentinel.Application.Tests/FlowSentinel.Application.Tests.csproj
@@ -129,6 +138,7 @@ tests/FlowSentinel.Desktop.Tests/VisualEditorSupportTests.cs
 tests/FlowSentinel.Domain.Tests/AutomationDefinitionTests.cs
 tests/FlowSentinel.Domain.Tests/FlowSentinel.Domain.Tests.csproj
 tests/FlowSentinel.Domain.Tests/GlobalUsings.cs
+tests/FlowSentinel.Infrastructure.Tests/ExcelSectionedMatrixParserTests.cs
 tests/FlowSentinel.Infrastructure.Tests/FlowSentinel.Infrastructure.Tests.csproj
 tests/FlowSentinel.Infrastructure.Tests/FlowStoreSqliteTests.cs
 tests/FlowSentinel.Infrastructure.Tests/GlobalUsings.cs

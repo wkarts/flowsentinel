@@ -1,0 +1,40 @@
+{
+  "id": "00000000-0000-0000-0000-000000000001",
+  "alias": "planilha",
+  "name": "Controle de conferência contábil",
+  "type": "Excel",
+  "isPrimary": true,
+  "enabled": true,
+  "keyFields": ["__recordKey"],
+  "configuration": {
+    "filePath": "C:\\Dados\\controle-contabil.xlsx",
+    "worksheet": null,
+    "headerRow": 1,
+    "ignoreEmptyRows": true,
+    "mode": "SectionedMatrix",
+    "worksheetSelection": "LatestYear",
+    "worksheetPattern": "(?<year>20\\d{2})",
+    "matrix": {
+      "headerMarker": "Nº",
+      "numberColumn": 1,
+      "sectionColumn": 2,
+      "companyColumn": 2,
+      "codeColumn": 3,
+      "collaboratorColumn": 4,
+      "firstPeriodColumn": 5,
+      "lastPeriodColumn": 20,
+      "includeBlankStatuses": true,
+      "includeFormatting": true,
+      "generateCompanyRecords": true,
+      "generateAggregateRecords": true,
+      "aggregateBySection": true,
+      "aggregateByCollaborator": true,
+      "autoDetectStandaloneSections": true,
+      "standaloneSectionTitles": "SIMPLES|EMPRESAS MEI|SEM MOVIMENTO",
+      "sectionsWithoutPeriods": "EMPRESAS MEI|SEM MOVIMENTO",
+      "currentStatusExcludedPeriods": "BAL",
+      "currentStatusMode": "CalendarPeriod",
+      "statusLabels": {}
+    }
+  }
+}

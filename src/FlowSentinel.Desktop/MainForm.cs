@@ -12,6 +12,7 @@ internal sealed class MainForm : Form
     private readonly ISecretProtector _secretProtector;
     private readonly IEvolutionInstanceService _evolutionInstanceService;
     private readonly ISourceDesignerService _sourceDesigner;
+    private readonly IWorkbookMonitoringService _workbookMonitoringService;
     private readonly AppPaths _paths;
     private readonly DesktopSettingsService _settingsService;
     private readonly DataGridView _grid = new();
@@ -30,6 +31,7 @@ internal sealed class MainForm : Form
         ISecretProtector secretProtector,
         IEvolutionInstanceService evolutionInstanceService,
         ISourceDesignerService sourceDesigner,
+        IWorkbookMonitoringService workbookMonitoringService,
         AppPaths paths,
         DesktopSettingsService settingsService)
     {
@@ -38,6 +40,7 @@ internal sealed class MainForm : Form
         _secretProtector = secretProtector;
         _evolutionInstanceService = evolutionInstanceService;
         _sourceDesigner = sourceDesigner;
+        _workbookMonitoringService = workbookMonitoringService;
         _paths = paths;
         _settingsService = settingsService;
 
@@ -81,7 +84,9 @@ internal sealed class MainForm : Form
 
         AddButton(toolbar, "Atualizar", async (_, _) => await RefreshAsync());
         AddButton(toolbar, "Executar agora", async (_, _) => await ExecuteSelectedAsync());
-        AddButton(toolbar, "Nova automação", async (_, _) => await CreateAutomationAsync());
+        AddButton(toolbar, "Novo monitoramento guiado", async (_, _) => await CreateAccountingMonitoringAsync());
+        AddButton(toolbar, "Painel de planilhas", (_, _) => OpenWorkbookMonitoring());
+        AddButton(toolbar, "Nova automação avançada", async (_, _) => await CreateAutomationAsync());
         AddButton(toolbar, "Editar", async (_, _) => await EditAutomationAsync());
         AddButton(toolbar, "JSON avançado", async (_, _) => await EditAutomationJsonAsync());
         AddButton(toolbar, "Ativar/Desativar", async (_, _) => await ToggleAutomationAsync());
@@ -156,6 +161,41 @@ internal sealed class MainForm : Form
             var snapshot = await _store.GetDashboardSnapshotAsync(CancellationToken.None);
             _summary.Text = $"Automações ativas: {snapshot.EnabledAutomations}    |    Ocorrências abertas: {snapshot.ActiveOccurrences}    |    Entregas pendentes: {snapshot.PendingDeliveries}    |    Falhas: {snapshot.FailedDeliveries}";
         });
+    }
+
+    private async Task CreateAccountingMonitoringAsync()
+    {
+        try
+        {
+            var channels = await _store.GetChannelConfigurationsAsync(CancellationToken.None);
+            using var wizard = new AccountingMonitorWizardForm(
+                channels.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToArray(),
+                _workbookMonitoringService);
+            if (wizard.ShowDialog(this) == DialogResult.OK && wizard.Definition is not null)
+            {
+                await _store.SaveAutomationAsync(wizard.Definition, CancellationToken.None);
+                await RefreshAsync();
+                if (MessageBox.Show(
+                        this,
+                        "Monitoramento criado. Deseja abrir agora o painel administrativo da planilha?",
+                        "FlowSentinel",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    OpenWorkbookMonitoring();
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception);
+        }
+    }
+
+    private void OpenWorkbookMonitoring()
+    {
+        using var panel = new WorkbookMonitorForm(_store, _workbookMonitoringService);
+        panel.ShowDialog(this);
     }
 
     private async Task CreateAutomationAsync()
