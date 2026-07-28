@@ -27,6 +27,12 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 
 ## [0.1.0] - 2026-07-28
 
+### Corrigido
+
+- Inicialização de `DataSourceDefinition.Configuration` com um objeto JSON vazio válido, evitando `InvalidOperationException` na serialização de fontes sem configuração explícita.
+- Teste de serialização atualizado para validar o `JsonElement` padrão e a persistência dos enums como texto.
+- Workflow de testes ajustado para gerar diretórios e arquivos TRX independentes por projeto, eliminando a sobrescrita dos resultados.
+
 ### Adicionado
 
 - Aplicação Windows em bandeja e executável de Windows Service.

@@ -43,9 +43,15 @@ public sealed class AutomationDefinitionTests
     [Fact]
     public void DeveSerializarEnumsComoTexto()
     {
-        var json = JsonSerializer.Serialize(CreateValidDefinition(), FlowJson.Options);
+        var definition = CreateValidDefinition();
+
+        Assert.Equal(JsonValueKind.Object, definition.Sources[0].Configuration.ValueKind);
+
+        var json = JsonSerializer.Serialize(definition, FlowJson.Options);
+
         Assert.Contains("\"type\": \"Csv\"", json);
         Assert.Contains("\"operator\": \"And\"", json);
+        Assert.Contains("\"configuration\": {}", json);
     }
 
     private static AutomationDefinition CreateValidDefinition() => new()

@@ -38,11 +38,29 @@ jobs:
         run: dotnet build FlowSentinel.sln -c Release --no-restore
 
       - name: Testar
-        run: >-
-          dotnet test FlowSentinel.sln -c Release --no-build
-          --collect:"XPlat Code Coverage"
-          --results-directory artifacts/test-results
-          --logger "trx;LogFileName=tests.trx"
+        shell: pwsh
+        run: |
+          $testProjects = Get-ChildItem -Path tests -Filter *.csproj -Recurse | Sort-Object FullName
+
+          if ($testProjects.Count -eq 0) {
+            throw "Nenhum projeto de testes foi encontrado no diretório tests."
+          }
+
+          foreach ($project in $testProjects) {
+            $projectName = [System.IO.Path]::GetFileNameWithoutExtension($project.Name)
+            $resultsDirectory = Join-Path "artifacts/test-results" $projectName
+
+            dotnet test $project.FullName `
+              -c Release `
+              --no-build `
+              --collect:"XPlat Code Coverage" `
+              --results-directory $resultsDirectory `
+              --logger "trx;LogFileName=$projectName.trx"
+
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+          }
 
       - name: Publicação de validação x64
         run: >-

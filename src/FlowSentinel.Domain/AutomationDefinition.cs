@@ -107,7 +107,13 @@ public sealed class DataSourceDefinition
     public bool IsPrimary { get; set; }
     public bool Enabled { get; set; } = true;
     public List<string> KeyFields { get; set; } = [];
-    public JsonElement Configuration { get; set; }
+    public JsonElement Configuration { get; set; } = CreateEmptyConfiguration();
+
+    private static JsonElement CreateEmptyConfiguration()
+    {
+        using var document = JsonDocument.Parse("{}");
+        return document.RootElement.Clone();
+    }
 
     public void Validate()
     {
