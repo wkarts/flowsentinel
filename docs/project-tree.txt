@@ -1,4 +1,4 @@
-FlowSentinel 0.2.0 - Árvore do projeto
+FlowSentinel 0.2.1 - Árvore do projeto
 
 .editorconfig
 .gitattributes
@@ -23,6 +23,7 @@ docs/examples/automation-clientes.json
 docs/github-flow.md
 docs/project-tree.txt
 docs/release-process.md
+docs/source-manifest.sha256
 docs/validation.md
 docs/visual-editor.md
 eng/Version.props
@@ -102,6 +103,9 @@ tests/FlowSentinel.Application.Tests/FlowSentinel.Application.Tests.csproj
 tests/FlowSentinel.Application.Tests/GlobalUsings.cs
 tests/FlowSentinel.Application.Tests/RuleEngineTests.cs
 tests/FlowSentinel.Application.Tests/TemplateRendererTests.cs
+tests/FlowSentinel.Desktop.Tests/FlowSentinel.Desktop.Tests.csproj
+tests/FlowSentinel.Desktop.Tests/GlobalUsings.cs
+tests/FlowSentinel.Desktop.Tests/VisualEditorSupportTests.cs
 tests/FlowSentinel.Domain.Tests/AutomationDefinitionTests.cs
 tests/FlowSentinel.Domain.Tests/FlowSentinel.Domain.Tests.csproj
 tests/FlowSentinel.Domain.Tests/GlobalUsings.cs

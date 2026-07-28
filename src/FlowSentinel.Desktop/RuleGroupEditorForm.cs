@@ -24,8 +24,7 @@ internal sealed class RuleGroupEditorForm : Form
             new DisplayItem<LogicalOperator>(LogicalOperator.And, "TODAS as condições (E)"),
             new DisplayItem<LogicalOperator>(LogicalOperator.Or, "QUALQUER condição (OU)")
         ]);
-        _operator.SelectedItem = _operator.Items.Cast<DisplayItem<LogicalOperator>>()
-            .First(x => x.Value == logicalOperator);
+        VisualEditorSupport.SelectDisplayItem(_operator, logicalOperator, LogicalOperator.And);
         _negate.Text = "Negar o resultado deste grupo";
         _negate.Checked = negate;
         _negate.AutoSize = true;

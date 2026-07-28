@@ -11,8 +11,35 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        System.Windows.Forms.Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        System.Windows.Forms.Application.ThreadException += (_, eventArgs) =>
+            HandleUnexpectedException(eventArgs.Exception);
+
         ApplicationConfiguration.Initialize();
         RunAsync(args).GetAwaiter().GetResult();
+    }
+
+    private static void HandleUnexpectedException(Exception exception)
+    {
+        try
+        {
+            var paths = AppPaths.ForDesktop();
+            paths.EnsureDirectories();
+            var logPath = Path.Combine(paths.LogDirectory, "unhandled-ui.log");
+            File.AppendAllText(
+                logPath,
+                $"[{DateTimeOffset.Now:O}] {exception}{Environment.NewLine}{Environment.NewLine}");
+        }
+        catch
+        {
+            // A falha de gravação do log não deve ocultar o erro original.
+        }
+
+        MessageBox.Show(
+            $"O FlowSentinel encontrou um erro inesperado, mas continuará aberto.\n\n{exception.Message}",
+            "FlowSentinel - Erro inesperado",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error);
     }
 
     private static async Task RunAsync(string[] args)

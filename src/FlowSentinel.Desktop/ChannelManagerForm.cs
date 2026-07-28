@@ -77,40 +77,55 @@ internal sealed class ChannelManagerForm : Form
 
     private async Task CreateAsync()
     {
-        using var editor = new ChannelEditorForm(
-            new ChannelConfiguration
-            {
-                Id = Guid.NewGuid(),
-                Name = "Novo canal",
-                Type = ChannelType.Email,
-                Enabled = false,
-                SettingsJson = "{}"
-            },
-            _secretProtector);
-        if (editor.ShowDialog(this) == DialogResult.OK && editor.Configuration is not null)
+        try
         {
-            await _store.SaveChannelConfigurationAsync(editor.Configuration, CancellationToken.None);
-            await RefreshAsync();
+            using var editor = new ChannelEditorForm(
+                new ChannelConfiguration
+                {
+                    Id = Guid.NewGuid(),
+                    Name = "Novo canal",
+                    Type = ChannelType.Email,
+                    Enabled = false,
+                    SettingsJson = "{}"
+                },
+                _secretProtector);
+            if (editor.ShowDialog(this) == DialogResult.OK && editor.Configuration is not null)
+            {
+                await _store.SaveChannelConfigurationAsync(editor.Configuration, CancellationToken.None);
+                await RefreshAsync();
+            }
+        }
+        catch (Exception exception)
+        {
+            VisualEditorSupport.ShowError(this, exception, "Cadastro de canal");
         }
     }
 
     private async Task EditAsync()
     {
-        var selected = Selected();
-        if (selected is null)
+        try
         {
-            return;
+            var selected = Selected();
+            if (selected is null)
+            {
+                return;
+            }
+            var configuration = await _store.GetChannelConfigurationAsync(selected.Id, CancellationToken.None);
+            if (configuration is null)
+            {
+                await RefreshAsync();
+                return;
+            }
+            using var editor = new ChannelEditorForm(configuration, _secretProtector);
+            if (editor.ShowDialog(this) == DialogResult.OK && editor.Configuration is not null)
+            {
+                await _store.SaveChannelConfigurationAsync(editor.Configuration, CancellationToken.None);
+                await RefreshAsync();
+            }
         }
-        var configuration = await _store.GetChannelConfigurationAsync(selected.Id, CancellationToken.None);
-        if (configuration is null)
+        catch (Exception exception)
         {
-            return;
-        }
-        using var editor = new ChannelEditorForm(configuration, _secretProtector);
-        if (editor.ShowDialog(this) == DialogResult.OK && editor.Configuration is not null)
-        {
-            await _store.SaveChannelConfigurationAsync(editor.Configuration, CancellationToken.None);
-            await RefreshAsync();
+            VisualEditorSupport.ShowError(this, exception, "Edição de canal");
         }
     }
 
