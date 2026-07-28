@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.AddSingleton<IDataSourceReader, CsvSourceReader>();
         services.AddSingleton<IDataSourceReader, TextSourceReader>();
         services.AddSingleton<IDataSourceReader, DatabaseSourceReader>();
+        services.AddSingleton<ISourceDesignerService, SourceDesignerService>();
 
         services.AddHttpClient(nameof(TelegramChannel));
         services.AddHttpClient(nameof(EvolutionApiChannel));

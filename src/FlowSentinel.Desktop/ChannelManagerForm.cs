@@ -30,8 +30,8 @@ internal sealed class ChannelManagerForm : Form
             AutoSize = true,
             Padding = new Padding(8)
         };
-        AddButton(toolbar, "Novo", async (_, _) => await CreateAsync());
-        AddButton(toolbar, "Editar", async (_, _) => await EditAsync());
+        AddButton(toolbar, "Novo canal", async (_, _) => await CreateAsync());
+        AddButton(toolbar, "Editar canal", async (_, _) => await EditAsync());
         AddButton(toolbar, "Excluir", async (_, _) => await DeleteAsync());
         AddButton(toolbar, "Status Evolution", async (_, _) => await CheckEvolutionStatusAsync());
         AddButton(toolbar, "QR Code Evolution", async (_, _) => await ShowEvolutionQrAsync());
@@ -70,7 +70,7 @@ internal sealed class ChannelManagerForm : Form
         {
             Id = x.Id,
             Name = x.Name,
-            Type = x.Type,
+            Type = VisualEditorSupport.ChannelTypeText(x.Type),
             Enabled = x.Enabled
         }).ToList();
     }
@@ -212,7 +212,7 @@ internal sealed class ChannelManagerForm : Form
     {
         public Guid Id { get; init; }
         public string Name { get; init; } = string.Empty;
-        public ChannelType Type { get; init; }
+        public string Type { get; init; } = string.Empty;
         public bool Enabled { get; init; }
     }
 }
