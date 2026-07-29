@@ -60,6 +60,12 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
             var now = DateTimeOffset.Now;
             var channelConfigurations = (await _store.GetChannelConfigurationsAsync(cancellationToken))
                 .ToDictionary(x => x.Id);
+            var openOccurrences = (await _store.GetOpenOccurrencesAsync(automation.Id, cancellationToken))
+                .GroupBy(item => item.RecordKey, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.OrderByDescending(item => item.OpenedAt).First(), StringComparer.OrdinalIgnoreCase);
+            var actionStates = (await _store.GetActionScheduleStatesAsync(automation.Id, cancellationToken))
+                .ToDictionary(item => (item.OccurrenceId, item.ActionId), item => item.State);
+
             var sourceResults = await ReadSourcesAsync(automation, cancellationToken);
             var mergedRecords = MergeRecords(automation, sourceResults);
             recordCount = mergedRecords.Count;
@@ -69,13 +75,23 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 seenKeys.Add(record.Key);
-                if (await EvaluateRecordAsync(automation, record, channelConfigurations, now, cancellationToken))
+                openOccurrences.TryGetValue(record.Key, out var occurrence);
+                if (await EvaluateRecordAsync(
+                        automation,
+                        record,
+                        occurrence,
+                        openOccurrences,
+                        channelConfigurations,
+                        actionStates,
+                        now,
+                        cancellationToken))
                 {
                     changedRecordCount++;
                 }
             }
 
-            await ResolveMissingRecordsAsync(automation, seenKeys, now, cancellationToken);
+            await _store.MarkOpenOccurrencesEvaluatedAsync(automation.Id, now, cancellationToken);
+            await ResolveMissingRecordsAsync(automation, openOccurrences.Values, seenKeys, now, cancellationToken);
             await _store.MarkAutomationExecutionAsync(
                 automation.Id,
                 now.AddSeconds(automation.IntervalSeconds),
@@ -177,11 +193,13 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
     private async Task<bool> EvaluateRecordAsync(
         AutomationDefinition automation,
         MergedRecord record,
+        OccurrenceStoreItem? occurrence,
+        IDictionary<string, OccurrenceStoreItem> openOccurrences,
         IReadOnlyDictionary<Guid, ChannelConfiguration> channelConfigurations,
+        IDictionary<(Guid OccurrenceId, Guid ActionId), ActionScheduleState> actionStates,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var occurrence = await _store.GetOpenOccurrenceAsync(automation.Id, record.Key, cancellationToken);
         var previous = occurrence?.Snapshot ?? new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         var context = new EvaluationContext
         {
@@ -211,13 +229,18 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
                 Fingerprint = record.Fingerprint
             };
             await _store.CreateOccurrenceAsync(occurrence, cancellationToken);
-            await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.OnOpen, now, cancellationToken);
-            await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.WhileActive, now, cancellationToken, openingOccurrence: true);
+            openOccurrences[record.Key] = occurrence;
+            await ScheduleActionsAsync(
+                automation, occurrence, context, channelConfigurations, actionStates, ActionTrigger.OnOpen, now, cancellationToken);
+            await ScheduleActionsAsync(
+                automation, occurrence, context, channelConfigurations, actionStates, ActionTrigger.WhileActive, now, cancellationToken,
+                openingOccurrence: true);
             occurrence.Status = OccurrenceStatus.Active;
             await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
             return false;
         }
 
+        var previousStatus = occurrence.Status;
         var recordChanged = !string.Equals(occurrence.Fingerprint, record.Fingerprint, StringComparison.Ordinal);
         if (recordChanged)
         {
@@ -231,11 +254,11 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
                 CurrentSnapshot = record.Fields.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
                 ChangedFields = GetChangedFields(previous, record.Fields)
             }, cancellationToken);
-        }
 
+            occurrence.Snapshot = record.Fields.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase);
+            occurrence.Fingerprint = record.Fingerprint;
+        }
         occurrence.LastEvaluatedAt = now;
-        occurrence.Snapshot = record.Fields.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase);
-        occurrence.Fingerprint = record.Fingerprint;
 
         if (_ruleEngine.Evaluate(automation.CompletionRules, context, defaultValue: false))
         {
@@ -243,14 +266,18 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
             occurrence.ResolvedAt = now;
             await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
             await _store.CancelPendingDeliveriesAsync(occurrence.Id, cancellationToken);
-            await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.OnResolved, now, cancellationToken);
+            await ScheduleActionsAsync(
+                automation, occurrence, context, channelConfigurations, actionStates, ActionTrigger.OnResolved, now, cancellationToken);
             return recordChanged;
         }
 
         if (_ruleEngine.Evaluate(automation.SuspensionRules, context, defaultValue: false))
         {
             occurrence.Status = OccurrenceStatus.Suspended;
-            await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
+            if (recordChanged || previousStatus != OccurrenceStatus.Suspended)
+            {
+                await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
+            }
             return recordChanged;
         }
 
@@ -262,13 +289,18 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
             occurrence.ResolvedAt = now;
             await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
             await _store.CancelPendingDeliveriesAsync(occurrence.Id, cancellationToken);
-            await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.OnResolved, now, cancellationToken);
+            await ScheduleActionsAsync(
+                automation, occurrence, context, channelConfigurations, actionStates, ActionTrigger.OnResolved, now, cancellationToken);
             return recordChanged;
         }
 
         occurrence.Status = OccurrenceStatus.Active;
-        await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
-        await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.WhileActive, now, cancellationToken);
+        if (recordChanged || previousStatus != OccurrenceStatus.Active)
+        {
+            await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
+        }
+        await ScheduleActionsAsync(
+            automation, occurrence, context, channelConfigurations, actionStates, ActionTrigger.WhileActive, now, cancellationToken);
         return recordChanged;
     }
 
@@ -277,6 +309,7 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
         OccurrenceStoreItem occurrence,
         EvaluationContext context,
         IReadOnlyDictionary<Guid, ChannelConfiguration> channelConfigurations,
+        IDictionary<(Guid OccurrenceId, Guid ActionId), ActionScheduleState> actionStates,
         ActionTrigger trigger,
         DateTimeOffset now,
         CancellationToken cancellationToken,
@@ -288,10 +321,12 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
             {
                 continue;
             }
+
             ActionScheduleState state;
             if (trigger == ActionTrigger.WhileActive)
             {
-                state = await EvaluateWhileActiveStateAsync(action, occurrence, context, now, cancellationToken);
+                state = await EvaluateWhileActiveStateAsync(
+                    action, occurrence, context, actionStates, now, cancellationToken);
                 if (!state.ConditionActive)
                 {
                     if (action.CancelPendingWhenConditionFails)
@@ -307,7 +342,7 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
                 {
                     continue;
                 }
-                state = await _store.GetActionScheduleStateAsync(occurrence.Id, action.Id, cancellationToken);
+                state = await GetScheduleStateAsync(occurrence.Id, action.Id, actionStates, cancellationToken);
             }
 
             if (!(action.Schedule ?? new ActionScheduleDefinition()).IsAllowed(now))
@@ -398,6 +433,13 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
                 executionNumber,
                 now,
                 cancellationToken);
+            actionStates[(occurrence.Id, action.Id)] = new ActionScheduleState
+            {
+                ConditionActive = state.ConditionActive,
+                EpisodeNumber = state.EpisodeNumber,
+                ExecutionCount = executionNumber,
+                LastScheduledAt = now
+            };
         }
     }
 
@@ -405,14 +447,50 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
         ActionDefinition action,
         OccurrenceStoreItem occurrence,
         EvaluationContext context,
+        IDictionary<(Guid OccurrenceId, Guid ActionId), ActionScheduleState> actionStates,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var current = await _store.GetActionScheduleStateAsync(occurrence.Id, action.Id, cancellationToken);
+        var key = (occurrence.Id, action.Id);
+        var activationMatches = _ruleEngine.Evaluate(action.Conditions, context);
+        var hasPersistentLifecycle = action.PersistenceConditions is not null ||
+                                     action.CompletionConditions is not null ||
+                                     action.Repeat.ResetOnConditionReentry;
+
+        if (!hasPersistentLifecycle)
+        {
+            if (!activationMatches)
+            {
+                return new ActionScheduleState { ConditionActive = false };
+            }
+
+            if (actionStates.TryGetValue(key, out var cached))
+            {
+                return cached.ConditionActive
+                    ? cached
+                    : await UpdateActionConditionStateAsync(
+                        occurrence.Id, action, true, actionStates, now, cancellationToken);
+            }
+
+            return await UpdateActionConditionStateAsync(
+                occurrence.Id, action, true, actionStates, now, cancellationToken);
+        }
+
+        if (!actionStates.TryGetValue(key, out var current))
+        {
+            if (!activationMatches)
+            {
+                return new ActionScheduleState { ConditionActive = false };
+            }
+
+            return await UpdateActionConditionStateAsync(
+                occurrence.Id, action, true, actionStates, now, cancellationToken);
+        }
+
         bool conditionActive;
         if (!current.ConditionActive)
         {
-            conditionActive = _ruleEngine.Evaluate(action.Conditions, context);
+            conditionActive = activationMatches;
         }
         else if (_ruleEngine.Evaluate(action.CompletionConditions, context, defaultValue: false))
         {
@@ -424,16 +502,52 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
         }
         else
         {
-            conditionActive = _ruleEngine.Evaluate(action.Conditions, context);
+            conditionActive = activationMatches;
         }
 
-        return await _store.UpdateActionConditionStateAsync(
-            occurrence.Id,
+        if (conditionActive == current.ConditionActive)
+        {
+            return current;
+        }
+
+        return await UpdateActionConditionStateAsync(
+            occurrence.Id, action, conditionActive, actionStates, now, cancellationToken);
+    }
+
+    private async Task<ActionScheduleState> UpdateActionConditionStateAsync(
+        Guid occurrenceId,
+        ActionDefinition action,
+        bool conditionActive,
+        IDictionary<(Guid OccurrenceId, Guid ActionId), ActionScheduleState> actionStates,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var updated = await _store.UpdateActionConditionStateAsync(
+            occurrenceId,
             action.Id,
             conditionActive,
             action.Repeat.ResetOnConditionReentry,
             now,
             cancellationToken);
+        actionStates[(occurrenceId, action.Id)] = updated;
+        return updated;
+    }
+
+    private async Task<ActionScheduleState> GetScheduleStateAsync(
+        Guid occurrenceId,
+        Guid actionId,
+        IDictionary<(Guid OccurrenceId, Guid ActionId), ActionScheduleState> actionStates,
+        CancellationToken cancellationToken)
+    {
+        var key = (occurrenceId, actionId);
+        if (actionStates.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        var loaded = await _store.GetActionScheduleStateAsync(occurrenceId, actionId, cancellationToken);
+        actionStates[key] = loaded;
+        return loaded;
     }
 
     private async Task AddExecutionHistorySafelyAsync(
@@ -499,6 +613,7 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
 
     private async Task ResolveMissingRecordsAsync(
         AutomationDefinition automation,
+        IReadOnlyCollection<OccurrenceStoreItem> openOccurrences,
         ISet<string> seenKeys,
         DateTimeOffset now,
         CancellationToken cancellationToken)
@@ -508,8 +623,7 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
             return;
         }
 
-        var open = await _store.GetOpenOccurrencesAsync(automation.Id, cancellationToken);
-        foreach (var occurrence in open.Where(x => !seenKeys.Contains(x.RecordKey)))
+        foreach (var occurrence in openOccurrences.Where(x => !seenKeys.Contains(x.RecordKey)))
         {
             occurrence.Status = OccurrenceStatus.Resolved;
             occurrence.ResolvedAt = now;

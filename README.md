@@ -73,7 +73,7 @@ Na primeira execução é criado o banco em:
 ## Publicação local
 
 ```powershell
-./scripts/publish.ps1 -Version 0.4.2
+./scripts/publish.ps1 -Version 0.4.3
 ```
 
 Os arquivos serão gerados em `artifacts/`.
@@ -90,8 +90,8 @@ Os arquivos serão gerados em `artifacts/`.
 3. Crie e envie a tag:
 
 ```powershell
-git tag v0.4.2
-git push origin v0.4.2
+git tag v0.4.3
+git push origin v0.4.3
 ```
 
 O workflow de release irá:
@@ -158,6 +158,16 @@ Uma única automação pode monitorar toda a planilha. Indicadores agregados sã
 
 Consulte `docs/complex-workbook-monitoring.md`, o exemplo genérico `docs/examples/source-planilha-matriz-generica.json` e o modelo opcional `docs/examples/source-planilha-matriz-contabil.json`.
 
+
+## Inicialização e desempenho
+
+A versão 0.4.3 corrige o bloqueio observado na tela **Verificando o banco local** e reduz a carga de automações com milhares de registros. O Desktop mantém a thread STA do WinForms dedicada à interface, executa banco e catálogos fora da thread visual, acompanha cada etapa do splash e interrompe a inicialização com uma mensagem objetiva caso um limite de tempo seja excedido.
+
+O banco é atualizado de forma incremental e em lote. Estados vazios produzidos pelas versões 0.4.1/0.4.2 são removidos sem apagar episódios, execuções ou entregas relevantes. A avaliação de ocorrências deixa de executar consultas e gravações individuais por registro, e o marcador de última avaliação é consolidado em uma janela de cinco minutos. O histórico de execuções e de mudanças continua preservado.
+
+A gravação de logs também foi reduzida: comandos informativos do Entity Framework e do `HttpClient` não são mais registrados no arquivo diário, enquanto avisos e erros permanecem disponíveis. A marca branca `WWSoftwaresDeveloperLogoWhite.png` é usada no painel escuro do splash.
+
+Não é necessário excluir `flowsentinel.db`, apagar ocorrências ou recriar automações. Consulte `docs/startup-performance-0.4.3.md`.
 
 ## Monitoramento recorrente de pendências
 

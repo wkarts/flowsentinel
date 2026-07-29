@@ -6,6 +6,7 @@ namespace FlowSentinel.Application;
 
 public sealed class AutomationSchedulerWorker : BackgroundService
 {
+    private static readonly TimeSpan InitialStartupDelay = TimeSpan.FromSeconds(2);
     private readonly IFlowStore _store;
     private readonly IAutomationExecutor _executor;
     private readonly IWorkerRuntimeSettings _settings;
@@ -26,6 +27,7 @@ public sealed class AutomationSchedulerWorker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await _store.InitializeAsync(stoppingToken);
+        await Task.Delay(InitialStartupDelay, stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -56,6 +58,7 @@ public sealed class AutomationSchedulerWorker : BackgroundService
 
 public sealed class DeliveryDispatcherWorker : BackgroundService
 {
+    private static readonly TimeSpan InitialStartupDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan[] RetryDelays =
     [
         TimeSpan.FromMinutes(1),
@@ -84,6 +87,7 @@ public sealed class DeliveryDispatcherWorker : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await _store.InitializeAsync(stoppingToken);
+        await Task.Delay(InitialStartupDelay, stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {

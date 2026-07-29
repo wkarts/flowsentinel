@@ -4,10 +4,13 @@ namespace FlowSentinel.Infrastructure;
 
 public sealed class RollingFileLoggerProvider : ILoggerProvider
 {
+    private static readonly TimeSpan InformationFlushInterval = TimeSpan.FromSeconds(2);
+
     private readonly string _directory;
     private readonly object _sync = new();
     private StreamWriter? _writer;
     private DateOnly _currentDate;
+    private DateTimeOffset _lastFlushAt = DateTimeOffset.MinValue;
 
     public RollingFileLoggerProvider(string directory)
     {
@@ -27,7 +30,13 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider
             {
                 _writer.WriteLine(exception);
             }
-            _writer.Flush();
+
+            var now = DateTimeOffset.UtcNow;
+            if (level >= LogLevel.Warning || now - _lastFlushAt >= InformationFlushInterval)
+            {
+                _writer.Flush();
+                _lastFlushAt = now;
+            }
         }
     }
 
@@ -39,19 +48,22 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider
             return;
         }
 
+        _writer?.Flush();
         _writer?.Dispose();
         _currentDate = today;
         var path = Path.Combine(_directory, $"flowsentinel-{today:yyyyMMdd}.log");
         _writer = new StreamWriter(new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
         {
-            AutoFlush = true
+            AutoFlush = false
         };
+        _lastFlushAt = DateTimeOffset.UtcNow;
     }
 
     public void Dispose()
     {
         lock (_sync)
         {
+            _writer?.Flush();
             _writer?.Dispose();
             _writer = null;
         }
@@ -92,6 +104,9 @@ public static class LoggingExtensions
 {
     public static ILoggingBuilder AddFlowSentinelFileLogging(this ILoggingBuilder builder, string directory)
     {
+        builder.AddFilter<RollingFileLoggerProvider>("Microsoft.EntityFrameworkCore", LogLevel.Warning);
+        builder.AddFilter<RollingFileLoggerProvider>("Microsoft.Extensions.Http", LogLevel.Warning);
+        builder.AddFilter<RollingFileLoggerProvider>("System.Net.Http.HttpClient", LogLevel.Warning);
         builder.AddProvider(new RollingFileLoggerProvider(directory));
         return builder;
     }

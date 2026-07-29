@@ -4,12 +4,13 @@ internal sealed class SplashForm : Form
 {
     private readonly Label _status = new();
     private readonly Label _detail = new();
+    private readonly Label _elapsed = new();
     private readonly ProgressBar _progress = new();
     private readonly Image? _developerLogo;
 
     internal SplashForm()
     {
-        _developerLogo = DesktopAssets.LoadDeveloperLogo();
+        _developerLogo = DesktopAssets.LoadDeveloperLogoForDarkBackground();
 
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.CenterScreen;
@@ -18,6 +19,7 @@ internal sealed class SplashForm : Form
         BackColor = Color.White;
         ClientSize = new Size(700, 390);
         UseWaitCursor = true;
+        DoubleBuffered = true;
 
         var root = new TableLayoutPanel
         {
@@ -33,7 +35,7 @@ internal sealed class SplashForm : Form
         {
             Dock = DockStyle.Fill,
             BackColor = Color.FromArgb(5, 39, 83),
-            Padding = new Padding(28)
+            Padding = new Padding(32)
         };
         logoPanel.Controls.Add(new PictureBox
         {
@@ -46,7 +48,7 @@ internal sealed class SplashForm : Form
         var content = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            RowCount = 9,
+            RowCount = 10,
             Padding = new Padding(32, 26, 12, 18)
         };
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -54,6 +56,7 @@ internal sealed class SplashForm : Form
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.Absolute, 8));
@@ -98,7 +101,13 @@ internal sealed class SplashForm : Form
         _detail.MaximumSize = new Size(360, 0);
         _detail.Text = "Inicializando componentes locais.";
         _detail.ForeColor = Color.DimGray;
-        _detail.Margin = new Padding(3, 0, 3, 10);
+        _detail.Margin = new Padding(3, 0, 3, 6);
+
+        _elapsed.AutoSize = true;
+        _elapsed.Text = "Tempo decorrido: 0 s";
+        _elapsed.ForeColor = Color.Gray;
+        _elapsed.Font = new Font("Segoe UI", 8.25F);
+        _elapsed.Margin = new Padding(3, 0, 3, 8);
 
         _progress.Dock = DockStyle.Top;
         _progress.Height = 10;
@@ -109,7 +118,8 @@ internal sealed class SplashForm : Form
 
         content.Controls.Add(_status, 0, 5);
         content.Controls.Add(_detail, 0, 6);
-        content.Controls.Add(_progress, 0, 8);
+        content.Controls.Add(_elapsed, 0, 7);
+        content.Controls.Add(_progress, 0, 9);
 
         root.Controls.Add(logoPanel, 0, 0);
         root.Controls.Add(content, 1, 0);
@@ -131,11 +141,38 @@ internal sealed class SplashForm : Form
 
         _status.Text = message;
         _detail.Text = string.IsNullOrWhiteSpace(detail) ? message : detail;
+        _elapsed.Text = "Tempo decorrido: 0 s";
+        _elapsed.ForeColor = Color.Gray;
         _progress.Value = Math.Clamp(progress, _progress.Minimum, _progress.Maximum);
+        Refresh();
+    }
+
+    internal void UpdateElapsed(string? stepName, TimeSpan elapsed, TimeSpan timeout)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        var seconds = Math.Max(0, (int)Math.Floor(elapsed.TotalSeconds));
+        if (elapsed >= TimeSpan.FromSeconds(15))
+        {
+            _elapsed.Text = $"Inicialização acompanhada: {seconds} s de {timeout.TotalSeconds:N0} s permitidos.";
+            _elapsed.ForeColor = Color.DarkGoldenrod;
+        }
+        else
+        {
+            _elapsed.Text = $"Tempo decorrido: {seconds} s";
+            _elapsed.ForeColor = Color.Gray;
+        }
+
+        if (!string.IsNullOrWhiteSpace(stepName) && elapsed >= TimeSpan.FromSeconds(30))
+        {
+            _status.Text = $"{stepName} — ainda em processamento";
+        }
+
+        _elapsed.Refresh();
         _status.Refresh();
-        _detail.Refresh();
-        _progress.Refresh();
-        System.Windows.Forms.Application.DoEvents();
     }
 
     protected override void Dispose(bool disposing)
