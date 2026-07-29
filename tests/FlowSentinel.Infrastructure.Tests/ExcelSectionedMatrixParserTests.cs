@@ -41,6 +41,8 @@ public sealed class ExcelSectionedMatrixParserTests
                 LastPeriodColumn = 9,
                 CurrentStatusExcludedPeriods = "BAL",
                 CurrentStatusMode = "LastFilled",
+                IncludeFormatting = true,
+                GenerateAggregateRecords = true,
                 StatusLabels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["X"] = "Conferido",
@@ -160,6 +162,7 @@ public sealed class ExcelSectionedMatrixParserTests
                 FirstPeriodColumn = 5,
                 LastPeriodColumn = 6,
                 CurrentStatusMode = "LastFilled",
+                GenerateAggregateRecords = true,
                 EntitySingularName = "Equipamento",
                 EntityPluralName = "Equipamentos"
             }
@@ -185,6 +188,89 @@ public sealed class ExcelSectionedMatrixParserTests
             x.Fields.GetValueOrDefault("Status") == "PENDENTE");
         Assert.Equal("Equipamentos", aggregate.Fields["Unit"]);
         Assert.Equal("1", aggregate.Fields["Count"]);
+    }
+
+
+    [Fact]
+    public void DeveRespeitarAreaDeLinhasConfigurada()
+    {
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.AddWorksheet("Controle 2026");
+        worksheet.Cell("A1").Value = "ID";
+        worksheet.Cell("B1").Value = "REGISTROS";
+        worksheet.Cell("E1").Value = "JAN";
+        AddCompany(worksheet, 2, "1", "Ignorar", "1", "Ana", ["X"]);
+        AddCompany(worksheet, 3, "2", "Monitorar", "2", "Bruno", ["P"]);
+        AddCompany(worksheet, 4, "3", "Ignorar também", "3", "Carlos", ["M"]);
+
+        var settings = new ExcelSourceSettings
+        {
+            Mode = "SectionedMatrix",
+            Matrix = new ExcelMatrixSettings
+            {
+                HeaderMarker = "ID",
+                HeaderTextContains = "REGISTROS",
+                FirstPeriodColumn = 5,
+                LastPeriodColumn = 5,
+                DataStartRow = 3,
+                DataEndRow = 3,
+                GenerateAggregateRecords = false
+            }
+        };
+
+        var records = ExcelSectionedMatrixParser.Parse(
+            "planilha",
+            worksheet,
+            settings,
+            new List<string>(),
+            CancellationToken.None);
+
+        var entity = records.Single(x => x.Fields.GetValueOrDefault("__recordType") == "Entity");
+        Assert.Equal("Monitorar", entity.Fields["Entity"]);
+        Assert.DoesNotContain(records, x => x.Fields.GetValueOrDefault("__recordType") == "Aggregate");
+    }
+
+    [Fact]
+    public void NaoDeveGerarIndicadoresDeValoresVaziosPorPadrao()
+    {
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.AddWorksheet("Controle 2026");
+        worksheet.Cell("A1").Value = "ID";
+        worksheet.Cell("B1").Value = "REGISTROS";
+        worksheet.Cell("E1").Value = "JAN";
+        AddCompany(worksheet, 2, "1", "Registro A", "1", "Ana", [""]);
+        AddCompany(worksheet, 3, "2", "Registro B", "2", "Ana", ["X"]);
+
+        var settings = new ExcelSourceSettings
+        {
+            Mode = "SectionedMatrix",
+            Matrix = new ExcelMatrixSettings
+            {
+                HeaderMarker = "ID",
+                HeaderTextContains = "REGISTROS",
+                FirstPeriodColumn = 5,
+                LastPeriodColumn = 5,
+                IncludeBlankStatuses = true,
+                IncludeBlankValuesInAggregates = false,
+                GenerateAggregateRecords = true,
+                AggregateBySection = false,
+                AggregateByCollaborator = false
+            }
+        };
+
+        var records = ExcelSectionedMatrixParser.Parse(
+            "planilha",
+            worksheet,
+            settings,
+            new List<string>(),
+            CancellationToken.None);
+
+        Assert.DoesNotContain(records, x =>
+            x.Fields.GetValueOrDefault("__recordType") == "Aggregate" &&
+            x.Fields.GetValueOrDefault("StatusDisplay") == "(vazio)");
+        Assert.Contains(records, x =>
+            x.Fields.GetValueOrDefault("__recordType") == "Aggregate" &&
+            x.Fields.GetValueOrDefault("Status") == "X");
     }
 
     private static void AddCompany(

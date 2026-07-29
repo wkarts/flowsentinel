@@ -6,6 +6,43 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 
 ## [Não publicado]
 
+## [0.4.2] - 2026-07-29
+
+### Corrigido
+
+- Corrigido o teste `DeveTransformarPlanilhaComBlocosEmEmpresasSituacoesETotais`, que validava destaque visual sem habilitar explicitamente `IncludeFormatting`; o comportamento de produção permanece opt-in e não foi alterado.
+- Mantida a política segura da 0.4.x: formatação e agregações somente são processadas quando configuradas.
+
+### Validado
+
+- Adicionado teste de regressão confirmando que pendências recorrentes aceitam letra, número, palavra ou frase, como `A`, `7`, `AGUARDANDO DOCUMENTAÇÃO` e `Em análise`.
+- Confirmado que `P` e `X` são apenas valores iniciais do assistente, não códigos fixos do motor.
+- Preservada a compatibilidade das automações 0.3.0, 0.4.0 e 0.4.1.
+
+## [0.4.1] - 2026-07-29
+
+### Corrigido
+
+- Corrigidos os três testes de infraestrutura que falhavam no CI após a alteração segura do padrão `GenerateAggregateRecords` para `false`; os testes que validam agregações agora habilitam essa capacidade explicitamente.
+- Mantido o padrão seguro da versão 0.4.0: indicadores agregados continuam opcionais e não voltam a gerar cascatas de notificações automaticamente.
+- Preservada a compatibilidade das automações existentes, inclusive chaves de idempotência legadas, aliases de planilha e modelos de notificação anteriores.
+
+### Adicionado
+
+- Ciclo de ação persistente com condições independentes de ativação, permanência e conclusão.
+- Lembretes recorrentes enquanto uma pendência permanecer sem atingir o valor esperado.
+- Encerramento automático do ciclo e cancelamento seletivo das entregas pendentes da ação concluída.
+- Reinício controlado da contagem quando a mesma pendência voltar a ocorrer, com número de episódio persistido.
+- Agenda por ação com dias da semana, horário inicial, horário final e suporte a janelas que atravessam a meia-noite.
+- Configuração visual de pendências no assistente de planilhas e no editor avançado de ações.
+- Histórico persistente resumido de cada execução e histórico detalhado das mudanças de registros, complementando o histórico já existente de ocorrências e entregas.
+- Testes de regressão para agenda, serialização de ações antigas, estado dos episódios, cancelamento seletivo, histórico e ciclo completo `P → X → P`.
+
+### Alterado
+
+- Persistência SQLite atualizada de forma aditiva para a versão interna 5, sem recriar o banco nem remover dados existentes.
+- Ações `WhileActive` podem optar por avaliação na abertura da ocorrência; o assistente habilita isso somente nos novos lembretes de pendência, mantendo ações antigas inalteradas.
+
 ### Corrigido
 
 - Corrigido o erro de compilação `CS0103` em `ExcelSectionedMatrixParser`, restaurando o acesso às configurações da matriz na geração de agregados por entidade.
@@ -26,6 +63,35 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 - Editor visual avançado de grupos lógicos.
 - Conectores adicionais por plugins externos.
 - Administração centralizada opcional.
+
+## [0.4.0] - 2026-07-29
+
+### Adicionado
+
+- Assistente profissional de planilhas em seis etapas: origem, mapeamento, pré-visualização, eventos, notificações e revisão.
+- Pré-visualização visual das abas com seleção de linhas, colunas, cabeçalho e área monitorada.
+- Menu **Modelos** com perfis para RP-102, matrizes periódicas, tarefas, documentos e configuração personalizada.
+- Políticas de entrega por canal: individual, agrupada por registro ou resumo único.
+- Catálogo central de contatos e grupos, com endereços por canal, permissões por automação e comandos diretos de criação, importação e exportação JSON/CSV no menu **Contatos**.
+- Seleção de contatos, grupos e destinatários manuais diretamente no assistente de planilhas e no editor avançado de ações.
+- Splash screen com estágios reais de inicialização para armazenamento, automações, canais, contatos e grupos.
+
+### Alterado
+
+- A janela principal foi reorganizada com menu estruturado, barra de ações, central de monitoramento e submenu de modelos.
+- Indicadores agregados e monitoramento de formatação passaram a ficar desativados por padrão no assistente.
+- Notificações locais do Windows são sempre individuais, independentemente da política dos canais externos.
+- Grupos incorporados à automação foram mantidos somente para compatibilidade e identificados como recurso legado.
+- O texto introdutório específico e pouco profissional do modelo RP-102 foi removido.
+
+### Corrigido
+
+- Eliminada a geração padrão da cascata de mensagens `ValuesByPeriod` e `EntitiesByCurrentValue` nas automações RP-102.
+- A atualização do armazenamento desativa a ação agregada legada da RP-102, remove agregações automáticas da fonte e cancela entregas agregadas ainda pendentes.
+- Canais removidos, desabilitados ou incompatíveis deixaram de criar novas entregas e de ser contabilizados como falhas operacionais.
+- A migração interna v4 reclassifica como `Skipped` as entregas pendentes, em retentativa, em processamento ou anteriormente falhas que pertençam a canais removidos ou desabilitados.
+- Restaurado o acesso às configurações da matriz na geração de agregados, corrigindo `CS0103` em `ExcelSectionedMatrixParser`.
+- Corrigida a resolução assíncrona de destinatários para contatos e grupos do catálogo central.
 
 ## [0.3.0] - 2026-07-28
 

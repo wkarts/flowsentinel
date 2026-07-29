@@ -9,6 +9,7 @@ internal sealed class AutomationWizardForm : Form
     private readonly IFlowStore _store;
     private readonly ISourceDesignerService _sourceDesigner;
     private readonly ISecretProtector _secretProtector;
+    private readonly ContactDirectoryDefinition _contactDirectory;
     private AutomationDefinition _working;
 
     private readonly TextBox _name = new();
@@ -37,12 +38,14 @@ internal sealed class AutomationWizardForm : Form
         AutomationDefinition definition,
         IFlowStore store,
         ISourceDesignerService sourceDesigner,
-        ISecretProtector secretProtector)
+        ISecretProtector secretProtector,
+        ContactDirectoryDefinition contactDirectory)
     {
         _working = VisualEditorSupport.Clone(definition);
         _store = store;
         _sourceDesigner = sourceDesigner;
         _secretProtector = secretProtector;
+        _contactDirectory = VisualEditorSupport.Clone(contactDirectory);
 
         Text = definition.Id == Guid.Empty || definition.Name == "Nova automação"
             ? "Nova automação — Assistente visual"
@@ -272,7 +275,7 @@ internal sealed class AutomationWizardForm : Form
         AddButton(toolbar, "Excluir", (_, _) => DeleteAction());
         var help = new Label
         {
-            Text = "Uma ação pode usar vários canais e vários destinatários. Os canais precisam ser cadastrados previamente na tela principal.",
+            Text = "Uma ação pode usar vários canais, políticas de agrupamento diferentes e destinatários do catálogo central. Canais, contatos e grupos são cadastrados na tela principal.",
             Dock = DockStyle.Top,
             AutoSize = true,
             Padding = new Padding(10)
@@ -286,14 +289,14 @@ internal sealed class AutomationWizardForm : Form
 
     private TabPage BuildGroupsTab()
     {
-        var tab = new TabPage("5. Contatos e grupos");
+        var tab = new TabPage("5. Grupos internos (legado)");
         var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Padding = new Padding(8) };
         AddButton(toolbar, "Adicionar grupo", (_, _) => AddGroup());
         AddButton(toolbar, "Editar grupo", (_, _) => EditGroup());
         AddButton(toolbar, "Excluir grupo", (_, _) => DeleteGroup());
         var help = new Label
         {
-            Text = "Grupos podem conter vários contatos e endereços por canal. Nas ações, selecione destinatário do tipo Grupo e informe este identificador.",
+            Text = "Compatibilidade com automações antigas que armazenavam grupos dentro da própria definição. Para novos monitoramentos, use o catálogo central em Configurações > Contatos e grupos.",
             Dock = DockStyle.Top,
             AutoSize = true,
             Padding = new Padding(10)
@@ -522,7 +525,9 @@ internal sealed class AutomationWizardForm : Form
                 MessageTemplate = "Ocorrência {{record.key}} detectada pela automação {{automation.name}}."
             },
             channels,
-            GetKnownFields());
+            GetKnownFields(),
+            _working.Id,
+            _contactDirectory);
         if (editor.ShowDialog(this) == DialogResult.OK && editor.Definition is not null)
         {
             _working.Actions.Add(editor.Definition);
@@ -541,7 +546,7 @@ internal sealed class AutomationWizardForm : Form
             return;
         }
         var channels = await _store.GetChannelConfigurationsAsync(CancellationToken.None);
-        using var editor = new ActionEditorForm(VisualEditorSupport.Clone(action), channels, GetKnownFields());
+        using var editor = new ActionEditorForm(VisualEditorSupport.Clone(action), channels, GetKnownFields(), _working.Id, _contactDirectory);
         if (editor.ShowDialog(this) == DialogResult.OK && editor.Definition is not null)
         {
             _working.Actions[_working.Actions.IndexOf(action)] = editor.Definition;
@@ -702,7 +707,7 @@ internal sealed class AutomationWizardForm : Form
                 $"Ações: {definition.Actions.Count}",
                 $"Canais vinculados: {definition.Actions.SelectMany(x => x.Channels).Select(x => x.ChannelConfigurationId).Distinct().Count()}",
                 $"Destinatários configurados: {definition.Actions.Sum(x => x.Recipients.Count)}",
-                $"Grupos de contatos: {definition.ContactGroups.Count}",
+                $"Grupos internos legados: {definition.ContactGroups.Count}",
                 string.Empty,
                 "FONTES"
             };

@@ -80,6 +80,28 @@ public sealed class RuleEngineTests
         Assert.True(_engine.Evaluate(rules, context));
     }
 
+    [Theory]
+    [InlineData("A")]
+    [InlineData("7")]
+    [InlineData("AGUARDANDO DOCUMENTAÇÃO")]
+    [InlineData("Em análise")]
+    public void DeveAceitarLetraNumeroPalavraOuFraseComoValorDePendencia(string actual)
+    {
+        var context = CreateContext(new Dictionary<string, string?>
+        {
+            ["Status"] = actual
+        });
+        var rules = CreateRules(LogicalOperator.And,
+            new RuleDefinition
+            {
+                Field = "Status",
+                Operator = RuleOperator.In,
+                ExpectedValue = "A|7|AGUARDANDO DOCUMENTAÇÃO|EM ANÁLISE"
+            });
+
+        Assert.True(_engine.Evaluate(rules, context));
+    }
+
     private static RuleSetDefinition CreateRules(LogicalOperator logicalOperator, params RuleDefinition[] rules) => new()
     {
         Type = RuleSetType.Entry,

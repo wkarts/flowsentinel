@@ -105,19 +105,22 @@ A tela permite configurar:
 8. coluna da entidade;
 9. coluna da chave/código;
 10. coluna do responsável;
-11. primeira e última coluna monitorada;
-12. grupos independentes;
-13. grupos sem colunas de acompanhamento;
-14. cálculo do valor atual;
-15. mapa de calendário, quando aplicável;
-16. períodos que não participam do valor atual;
-17. nomes administrativos exibidos no painel;
-18. legenda dos valores;
-19. geração de totais e monitoramento de formatação.
+11. primeira e última linha de dados;
+12. primeira e última coluna monitorada;
+13. grupos independentes;
+14. grupos sem colunas de acompanhamento;
+15. cálculo do valor atual;
+16. mapa de calendário, quando aplicável;
+17. períodos que não participam do valor atual;
+18. nomes administrativos exibidos no painel;
+19. legenda dos valores;
+20. geração opcional de totais globais, por grupo e por responsável;
+21. inclusão opcional de valores vazios nos totais;
+22. monitoramento opcional de formatação.
 
-## Modelo opcional RP-102
+## Perfil RP-102 no menu Modelos
 
-O botão **Modelo RP-102 (opcional)** não altera o motor e não cria uma regra global fixa. Ele apenas preenche os parâmetros conhecidos do arquivo de referência, como:
+O menu **Modelos > Matriz contábil RP-102** inicia o assistente com os parâmetros conhecidos do arquivo de referência. O perfil é apenas uma configuração inicial do mesmo motor genérico:
 
 - colunas A até T;
 - cabeçalho identificado por `Nº` e `EMPRESAS`;
@@ -125,9 +128,7 @@ O botão **Modelo RP-102 (opcional)** não altera o motor e não cria uma regra 
 - colunas auxiliares `BAL`;
 - grupos especiais usados naquele arquivo.
 
-Após aplicar o modelo, todos os parâmetros continuam editáveis.
-
-O botão da tela principal também é apresentado como **Modelo RP-102 (opcional)** para deixar claro que ele não é o único fluxo de monitoramento.
+Após escolher o perfil, todos os parâmetros continuam editáveis nas etapas de mapeamento e pré-visualização. O menu também oferece matrizes periódicas, tarefas, documentos e um modelo personalizado.
 
 ## Exemplo genérico
 

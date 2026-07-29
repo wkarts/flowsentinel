@@ -53,6 +53,41 @@ internal sealed class DeliveryEntity
     public string FieldsJson { get; set; } = "{}";
 }
 
+internal sealed class ActionRuntimeStateEntity
+{
+    public Guid OccurrenceId { get; set; }
+    public Guid ActionId { get; set; }
+    public bool ConditionActive { get; set; }
+    public int EpisodeNumber { get; set; }
+    public int ExecutionCount { get; set; }
+    public DateTime? LastScheduledAt { get; set; }
+    public DateTime LastEvaluatedAt { get; set; }
+}
+
+internal sealed class AutomationExecutionHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid AutomationId { get; set; }
+    public DateTime StartedAt { get; set; }
+    public DateTime CompletedAt { get; set; }
+    public bool Success { get; set; }
+    public int RecordCount { get; set; }
+    public int ChangedRecordCount { get; set; }
+    public string? Error { get; set; }
+}
+
+internal sealed class RecordChangeHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid AutomationId { get; set; }
+    public Guid OccurrenceId { get; set; }
+    public string RecordKey { get; set; } = string.Empty;
+    public DateTime DetectedAt { get; set; }
+    public string PreviousSnapshotJson { get; set; } = "{}";
+    public string CurrentSnapshotJson { get; set; } = "{}";
+    public string ChangedFieldsJson { get; set; } = "[]";
+}
+
 internal sealed class ChannelConfigurationEntity
 {
     public Guid Id { get; set; }

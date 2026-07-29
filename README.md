@@ -12,7 +12,9 @@ FlowSentinel é uma plataforma Windows genérica para monitoramento orientado a 
 - Várias ações por ocorrência.
 - Vários canais por ação.
 - Vários destinatários no mesmo canal.
-- Destinatários fixos, vindos dos dados ou pertencentes a grupos.
+- Catálogo central de contatos e grupos reutilizáveis, com permissões por automação.
+- Destinatários fixos, vindos dos dados, do catálogo ou pertencentes a grupos.
+- Envio individual, agrupado por registro ou consolidado em resumo único por canal.
 - Templates com campos do registro.
 - Fila persistente, retentativa, idempotência e auditoria.
 - Aplicação em System Tray e modo Windows Service.
@@ -65,13 +67,13 @@ dotnet run --project src/FlowSentinel.Desktop/FlowSentinel.Desktop.csproj
 Na primeira execução é criado o banco em:
 
 ```text
-%LOCALAPPDATA%\WWSoftwares\FlowSentinel\data\flowsentinel.db
+%LOCALAPPDATA%\FlowSentinel\data\flowsentinel.db
 ```
 
 ## Publicação local
 
 ```powershell
-./scripts/publish.ps1 -Version 0.3.0
+./scripts/publish.ps1 -Version 0.4.2
 ```
 
 Os arquivos serão gerados em `artifacts/`.
@@ -88,8 +90,8 @@ Os arquivos serão gerados em `artifacts/`.
 3. Crie e envie a tag:
 
 ```powershell
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.4.2
+git push origin v0.4.2
 ```
 
 O workflow de release irá:
@@ -138,23 +140,54 @@ docs/examples/automation-clientes.json
 Consulte também `docs/visual-editor.md`.
 
 
-## Monitoramento genérico de planilhas estruturadas
+## Assistente profissional de planilhas estruturadas
 
-A versão 0.3.0 adiciona o modo Excel `SectionedMatrix` para planilhas que possuem vários grupos, cabeçalhos repetidos, colunas de acompanhamento, cores ou listas especiais.
+A versão 0.4.0 transforma o modo Excel `SectionedMatrix` em um assistente guiado de seis etapas para planilhas que possuem vários grupos, cabeçalhos repetidos, colunas de acompanhamento, cores ou listas especiais.
 
 O mecanismo é genérico. Cada linha pode representar cliente, equipamento, tarefa, contrato, documento ou qualquer outra entidade. Os nomes exibidos, as colunas, os períodos, os prefixos e as regras de reconhecimento são configurados visualmente.
 
 Na tela principal:
 
-- **Nova automação avançada** permite configurar qualquer estrutura;
-- **Modelo RP-102 (opcional)** apenas preenche os parâmetros do arquivo contábil usado como caso de teste;
+- **Novo > Assistente de planilhas** abre o fluxo genérico com análise visual, seleção de linhas e colunas, mapeamento e revisão;
+- **Modelos** oferece perfis iniciais para matriz contábil RP-102, acompanhamento por períodos, tarefas, documentos e modelo personalizado;
 - **Painel de planilhas** exibe a estrutura original, indicadores, entidades, valores e mudanças;
 - **Legenda de situações** associa os códigos ao significado definido pelo usuário;
 - **Gravar linha de base** e **Comparar alterações** mostram o que mudou entre leituras.
 
-Uma única automação pode monitorar toda a planilha. Não é necessário cadastrar uma automação por empresa ou por registro.
+Uma única automação pode monitorar toda a planilha. Indicadores agregados são opcionais e permanecem desativados por padrão para evitar notificações derivadas em excesso. Cada canal pode enviar mensagens individualmente, por registro ou em um resumo único; notificações locais do Windows permanecem individuais. Canais removidos, desabilitados ou incompatíveis são ignorados antes do agendamento e não geram falsas falhas no painel.
 
 Consulte `docs/complex-workbook-monitoring.md`, o exemplo genérico `docs/examples/source-planilha-matriz-generica.json` e o modelo opcional `docs/examples/source-planilha-matriz-contabil.json`.
+
+
+## Monitoramento recorrente de pendências
+
+A versão 0.4.2 mantém os eventos de mudança existentes e acrescenta um ciclo de ação persistente para situações em que o valor esperado ainda não foi alcançado. No assistente de planilhas, a opção **Lembrar enquanto uma pendência continuar sem solução** permite informar:
+
+- valores que iniciam a pendência, como `P`, `7`, `PENDENTE`, `AGUARDANDO DOCUMENTAÇÃO` ou qualquer outra letra, número, palavra ou frase;
+- valores esperados que encerram o ciclo, como `X`, `9`, `CONCLUÍDO`, `DOCUMENTAÇÃO APROVADA` ou qualquer valor configurado;
+- intervalo em minutos, horas ou dias;
+- quantidade máxima de notificações, usando zero para repetição ilimitada;
+- dias da semana e janela de horário permitida;
+- canais, destinatários e política de agrupamento já existentes.
+
+Cada ação recorrente possui condições separadas de ativação, permanência e conclusão. Os valores são tratados como dados configuráveis, sem dependência das letras `P` e `X`. A comparação exata ignora diferenças entre maiúsculas e minúsculas e remove espaços nas extremidades; no editor avançado também podem ser usados operadores numéricos, texto parcial e expressão regular. Quando a conclusão é atendida, novos envios são interrompidos e entregas ainda pendentes daquela ação são canceladas. Se a pendência surgir novamente, um novo episódio é iniciado com contagem própria, sem colidir com as chaves de idempotência do episódio anterior.
+
+O editor avançado de ações oferece as mesmas capacidades para qualquer fonte, não apenas planilhas. As automações antigas continuam válidas porque os novos campos possuem valores padrão compatíveis. O SQLite mantém o estado dos episódios, o resumo de cada execução, as alterações de registros e todo o histórico de entregas.
+
+Consulte `docs/pending-monitoring-and-model-compatibility-0.4.1.md` e `docs/generic-pending-values-0.4.2.md`.
+
+## Contatos e grupos reutilizáveis
+
+O menu **Contatos** oferece criação direta, catálogo, grupos, importação e exportação. O catálogo é independente das automações. Cada contato pode possuir endereços de WhatsApp, e-mail e Telegram, ser disponibilizado para todas as automações ou somente para automações autorizadas e participar de vários grupos.
+
+O catálogo permite:
+
+- criar, editar e excluir contatos e grupos;
+- importar e exportar o catálogo completo em JSON;
+- importar e exportar contatos em CSV com validação transacional;
+- reutilizar contatos e grupos nos assistentes sem redigitar endereços;
+- restringir contatos e grupos a automações específicas;
+- combinar destinatários do catálogo com valores manuais e campos das fontes.
 
 ## Segredos protegidos
 

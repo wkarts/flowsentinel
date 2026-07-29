@@ -11,6 +11,9 @@ internal sealed class FlowSentinelDbContext : DbContext
     public DbSet<AutomationEntity> Automations => Set<AutomationEntity>();
     public DbSet<OccurrenceEntity> Occurrences => Set<OccurrenceEntity>();
     public DbSet<DeliveryEntity> Deliveries => Set<DeliveryEntity>();
+    public DbSet<ActionRuntimeStateEntity> ActionRuntimeStates => Set<ActionRuntimeStateEntity>();
+    public DbSet<AutomationExecutionHistoryEntity> AutomationExecutionHistory => Set<AutomationExecutionHistoryEntity>();
+    public DbSet<RecordChangeHistoryEntity> RecordChangeHistory => Set<RecordChangeHistoryEntity>();
     public DbSet<ChannelConfigurationEntity> ChannelConfigurations => Set<ChannelConfigurationEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -42,6 +45,33 @@ internal sealed class FlowSentinelDbContext : DbContext
             entity.HasIndex(x => x.IdempotencyKey).IsUnique();
             entity.HasIndex(x => new { x.Status, x.DueAt });
             entity.HasIndex(x => new { x.OccurrenceId, x.ActionId, x.ExecutionNumber });
+        });
+
+        modelBuilder.Entity<ActionRuntimeStateEntity>(entity =>
+        {
+            entity.ToTable("action_runtime_states");
+            entity.HasKey(x => new { x.OccurrenceId, x.ActionId });
+            entity.HasIndex(x => new { x.ConditionActive, x.LastEvaluatedAt });
+        });
+
+        modelBuilder.Entity<AutomationExecutionHistoryEntity>(entity =>
+        {
+            entity.ToTable("automation_execution_history");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Error).HasMaxLength(4000);
+            entity.HasIndex(x => new { x.AutomationId, x.StartedAt });
+        });
+
+        modelBuilder.Entity<RecordChangeHistoryEntity>(entity =>
+        {
+            entity.ToTable("record_change_history");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.RecordKey).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.PreviousSnapshotJson).IsRequired();
+            entity.Property(x => x.CurrentSnapshotJson).IsRequired();
+            entity.Property(x => x.ChangedFieldsJson).IsRequired();
+            entity.HasIndex(x => new { x.AutomationId, x.DetectedAt });
+            entity.HasIndex(x => new { x.OccurrenceId, x.DetectedAt });
         });
 
         modelBuilder.Entity<ChannelConfigurationEntity>(entity =>

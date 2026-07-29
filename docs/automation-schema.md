@@ -10,8 +10,11 @@ AutomationDefinition
 ├── CompletionRules
 ├── SuspensionRules
 ├── Actions[]
-│   ├── Conditions
+│   ├── Conditions (ativação)
+│   ├── PersistenceConditions
+│   ├── CompletionConditions
 │   ├── Repeat
+│   ├── Schedule
 │   ├── Channels[]
 │   └── Recipients[]
 └── ContactGroups[]
@@ -46,3 +49,29 @@ Todas podem coexistir na mesma automação e no mesmo registro.
 - `Group`: grupo reutilizável de contatos.
 
 Uma coluna pode conter mais de um destinatário separado por `;` ou `,`.
+
+## Ciclo recorrente por ação
+
+Para lembrar enquanto uma condição ainda não foi resolvida, use uma ação `WhileActive` com:
+
+```json
+{
+  "trigger": "WhileActive",
+  "evaluateWhileActiveOnOpen": true,
+  "repeat": {
+    "enabled": true,
+    "intervalSeconds": 3600,
+    "maxExecutions": 0,
+    "resetOnConditionReentry": true
+  },
+  "cancelPendingWhenConditionFails": true,
+  "schedule": {
+    "enabled": true,
+    "startTime": "08:00",
+    "endTime": "18:00",
+    "daysOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+  }
+}
+```
+
+`Conditions` abre o episódio, `PersistenceConditions` o mantém ativo e `CompletionConditions` o encerra. Propriedades ausentes preservam o comportamento das definições anteriores.

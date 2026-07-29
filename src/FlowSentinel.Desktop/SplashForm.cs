@@ -3,6 +3,7 @@ namespace FlowSentinel.Desktop;
 internal sealed class SplashForm : Form
 {
     private readonly Label _status = new();
+    private readonly Label _detail = new();
     private readonly ProgressBar _progress = new();
     private readonly Image? _developerLogo;
 
@@ -15,7 +16,7 @@ internal sealed class SplashForm : Form
         ShowInTaskbar = false;
         TopMost = true;
         BackColor = Color.White;
-        ClientSize = new Size(650, 370);
+        ClientSize = new Size(700, 390);
         UseWaitCursor = true;
 
         var root = new TableLayoutPanel
@@ -25,87 +26,90 @@ internal sealed class SplashForm : Form
             RowCount = 1,
             Padding = new Padding(28)
         };
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 240));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 250));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         var logoPanel = new Panel
         {
             Dock = DockStyle.Fill,
             BackColor = Color.FromArgb(5, 39, 83),
-            Padding = new Padding(24)
+            Padding = new Padding(28)
         };
-
-        var logo = new PictureBox
+        logoPanel.Controls.Add(new PictureBox
         {
             Dock = DockStyle.Fill,
             Image = _developerLogo,
             SizeMode = PictureBoxSizeMode.Zoom,
             BackColor = Color.Transparent
-        };
-        logoPanel.Controls.Add(logo);
+        });
 
         var content = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            RowCount = 7,
-            Padding = new Padding(30, 28, 10, 18)
+            RowCount = 9,
+            Padding = new Padding(32, 26, 12, 18)
         };
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 8));
+        content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        var title = new Label
+        content.Controls.Add(new Label
         {
             Text = "FlowSentinel",
             AutoSize = true,
             Font = new Font("Segoe UI", 25, FontStyle.Bold),
             ForeColor = Color.FromArgb(5, 39, 83)
-        };
-
-        var subtitle = new Label
+        }, 0, 0);
+        content.Controls.Add(new Label
         {
             Text = "Monitoramento e Notificações",
             AutoSize = true,
-            Font = new Font("Segoe UI", 11, FontStyle.Regular),
+            Font = new Font("Segoe UI", 11),
             ForeColor = Color.FromArgb(70, 70, 70),
             Margin = new Padding(3, 4, 3, 3)
-        };
-
-        var version = new Label
+        }, 0, 1);
+        content.Controls.Add(new Label
         {
             Text = $"Versão {ApplicationMetadata.Version}",
             AutoSize = true,
             ForeColor = Color.DimGray
-        };
-
-        var developer = new Label
+        }, 0, 3);
+        content.Controls.Add(new Label
         {
             Text = $"Desenvolvido por\n{ApplicationMetadata.DeveloperCompany}",
             AutoSize = true,
-            Font = new Font("Segoe UI", 9, FontStyle.Regular),
+            Font = new Font("Segoe UI", 9),
             ForeColor = Color.FromArgb(70, 70, 70)
-        };
+        }, 0, 4);
 
         _status.AutoSize = true;
+        _status.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
         _status.Text = "Preparando a aplicação...";
-        _status.ForeColor = Color.FromArgb(55, 55, 55);
-        _status.Margin = new Padding(3, 0, 3, 8);
+        _status.ForeColor = Color.FromArgb(45, 60, 80);
+        _status.Margin = new Padding(3, 0, 3, 4);
+
+        _detail.AutoSize = true;
+        _detail.MaximumSize = new Size(360, 0);
+        _detail.Text = "Inicializando componentes locais.";
+        _detail.ForeColor = Color.DimGray;
+        _detail.Margin = new Padding(3, 0, 3, 10);
 
         _progress.Dock = DockStyle.Top;
-        _progress.Height = 8;
-        _progress.Style = ProgressBarStyle.Marquee;
-        _progress.MarqueeAnimationSpeed = 24;
+        _progress.Height = 10;
+        _progress.Style = ProgressBarStyle.Continuous;
+        _progress.Minimum = 0;
+        _progress.Maximum = 100;
+        _progress.Value = 0;
 
-        content.Controls.Add(title, 0, 0);
-        content.Controls.Add(subtitle, 0, 1);
-        content.Controls.Add(version, 0, 3);
-        content.Controls.Add(developer, 0, 4);
         content.Controls.Add(_status, 0, 5);
-        content.Controls.Add(_progress, 0, 6);
+        content.Controls.Add(_detail, 0, 6);
+        content.Controls.Add(_progress, 0, 8);
 
         root.Controls.Add(logoPanel, 0, 0);
         root.Controls.Add(content, 1, 0);
@@ -118,7 +122,7 @@ internal sealed class SplashForm : Form
         };
     }
 
-    internal void UpdateStatus(string message)
+    internal void UpdateStatus(string message, int progress, string? detail = null)
     {
         if (IsDisposed)
         {
@@ -126,7 +130,11 @@ internal sealed class SplashForm : Form
         }
 
         _status.Text = message;
+        _detail.Text = string.IsNullOrWhiteSpace(detail) ? message : detail;
+        _progress.Value = Math.Clamp(progress, _progress.Minimum, _progress.Maximum);
         _status.Refresh();
+        _detail.Refresh();
+        _progress.Refresh();
         System.Windows.Forms.Application.DoEvents();
     }
 
@@ -136,7 +144,6 @@ internal sealed class SplashForm : Form
         {
             _developerLogo?.Dispose();
         }
-
         base.Dispose(disposing);
     }
 }

@@ -7,6 +7,7 @@ public sealed class AppPaths
     public string LogDirectory => Path.Combine(RootDirectory, "logs");
     public string BackupDirectory => Path.Combine(RootDirectory, "backups");
     public string DatabasePath => Path.Combine(DataDirectory, "flowsentinel.db");
+    public string ContactDirectoryPath => Path.Combine(DataDirectory, "contacts.json");
 
     public static AppPaths ForDesktop() => CreateFromEnvironmentOrDefault(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));

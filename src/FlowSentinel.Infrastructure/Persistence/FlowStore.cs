@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using FlowSentinel.Application;
 using FlowSentinel.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +9,7 @@ namespace FlowSentinel.Infrastructure.Persistence;
 
 internal sealed class FlowStore : IFlowStore
 {
-    private const int CurrentStorageVersion = 2;
+    private const int CurrentStorageVersion = 5;
 
     public static readonly Guid LocalChannelId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
@@ -43,6 +44,7 @@ internal sealed class FlowStore : IFlowStore
 
             await using var context = await _factory.CreateDbContextAsync(cancellationToken);
             await context.Database.EnsureCreatedAsync(cancellationToken);
+            await EnsureAdditiveSchemaAsync(context, cancellationToken);
             await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;", cancellationToken);
             await context.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000;", cancellationToken);
             await NormalizeStoredDateTimesAsync(context, cancellationToken);
@@ -146,10 +148,30 @@ internal sealed class FlowStore : IFlowStore
     {
         await InitializeAsync(cancellationToken);
         await using var context = await _factory.CreateDbContextAsync(cancellationToken);
-        var deliveryIds = context.Deliveries.Where(x => x.AutomationId == automationId);
-        var occurrenceIds = context.Occurrences.Where(x => x.AutomationId == automationId);
-        context.Deliveries.RemoveRange(deliveryIds);
-        context.Occurrences.RemoveRange(occurrenceIds);
+        var occurrenceIds = await context.Occurrences
+            .Where(x => x.AutomationId == automationId)
+            .Select(x => x.Id)
+            .ToArrayAsync(cancellationToken);
+        var deliveries = await context.Deliveries
+            .Where(x => x.AutomationId == automationId)
+            .ToArrayAsync(cancellationToken);
+        var runtimeStates = await context.ActionRuntimeStates
+            .Where(x => occurrenceIds.Contains(x.OccurrenceId))
+            .ToArrayAsync(cancellationToken);
+        var occurrences = await context.Occurrences
+            .Where(x => x.AutomationId == automationId)
+            .ToArrayAsync(cancellationToken);
+        var executionHistory = await context.AutomationExecutionHistory
+            .Where(x => x.AutomationId == automationId)
+            .ToArrayAsync(cancellationToken);
+        var changeHistory = await context.RecordChangeHistory
+            .Where(x => x.AutomationId == automationId)
+            .ToArrayAsync(cancellationToken);
+        context.Deliveries.RemoveRange(deliveries);
+        context.ActionRuntimeStates.RemoveRange(runtimeStates);
+        context.AutomationExecutionHistory.RemoveRange(executionHistory);
+        context.RecordChangeHistory.RemoveRange(changeHistory);
+        context.Occurrences.RemoveRange(occurrences);
         var automation = await context.Automations.SingleOrDefaultAsync(x => x.Id == automationId, cancellationToken);
         if (automation is not null)
         {
@@ -176,6 +198,46 @@ internal sealed class FlowStore : IFlowStore
         entity.NextRunAt = nextRunAt.UtcDateTime;
         entity.LastError = Truncate(error, 4000);
         entity.UpdatedAt = DateTime.UtcNow;
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AddAutomationExecutionHistoryAsync(
+        AutomationExecutionHistoryItem history,
+        CancellationToken cancellationToken)
+    {
+        await InitializeAsync(cancellationToken);
+        await using var context = await _factory.CreateDbContextAsync(cancellationToken);
+        context.AutomationExecutionHistory.Add(new AutomationExecutionHistoryEntity
+        {
+            Id = history.Id,
+            AutomationId = history.AutomationId,
+            StartedAt = history.StartedAt.UtcDateTime,
+            CompletedAt = history.CompletedAt.UtcDateTime,
+            Success = history.Success,
+            RecordCount = history.RecordCount,
+            ChangedRecordCount = history.ChangedRecordCount,
+            Error = Truncate(history.Error, 4000)
+        });
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AddRecordChangeHistoryAsync(
+        RecordChangeHistoryItem history,
+        CancellationToken cancellationToken)
+    {
+        await InitializeAsync(cancellationToken);
+        await using var context = await _factory.CreateDbContextAsync(cancellationToken);
+        context.RecordChangeHistory.Add(new RecordChangeHistoryEntity
+        {
+            Id = history.Id,
+            AutomationId = history.AutomationId,
+            OccurrenceId = history.OccurrenceId,
+            RecordKey = history.RecordKey,
+            DetectedAt = history.DetectedAt.UtcDateTime,
+            PreviousSnapshotJson = JsonSerializer.Serialize(history.PreviousSnapshot, FlowJson.Options),
+            CurrentSnapshotJson = JsonSerializer.Serialize(history.CurrentSnapshot, FlowJson.Options),
+            ChangedFieldsJson = JsonSerializer.Serialize(history.ChangedFields, FlowJson.Options)
+        });
         await context.SaveChangesAsync(cancellationToken);
     }
 
@@ -246,21 +308,92 @@ internal sealed class FlowStore : IFlowStore
     {
         await InitializeAsync(cancellationToken);
         await using var context = await _factory.CreateDbContextAsync(cancellationToken);
-        var query = context.Deliveries.AsNoTracking()
-            .Where(x => x.OccurrenceId == occurrenceId && x.ActionId == actionId);
-
-        var executionCount = await query
-            .Select(x => (int?)x.ExecutionNumber)
-            .MaxAsync(cancellationToken) ?? 0;
-        var lastScheduledUtc = await query
-            .Select(x => (DateTime?)x.CreatedAt)
-            .MaxAsync(cancellationToken);
-
-        return new ActionScheduleState
+        var state = await context.ActionRuntimeStates
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.OccurrenceId == occurrenceId && x.ActionId == actionId, cancellationToken);
+        if (state is not null)
         {
-            ExecutionCount = executionCount,
-            LastScheduledAt = ToDateTimeOffset(lastScheduledUtc)
-        };
+            return Map(state);
+        }
+
+        return await BuildLegacyScheduleStateAsync(context, occurrenceId, actionId, cancellationToken);
+    }
+
+    public async Task<ActionScheduleState> UpdateActionConditionStateAsync(
+        Guid occurrenceId,
+        Guid actionId,
+        bool conditionActive,
+        bool resetOnReentry,
+        DateTimeOffset evaluatedAt,
+        CancellationToken cancellationToken)
+    {
+        await InitializeAsync(cancellationToken);
+        await using var context = await _factory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.ActionRuntimeStates
+            .SingleOrDefaultAsync(x => x.OccurrenceId == occurrenceId && x.ActionId == actionId, cancellationToken);
+
+        if (entity is null)
+        {
+            var legacy = await BuildLegacyScheduleStateAsync(context, occurrenceId, actionId, cancellationToken);
+            entity = new ActionRuntimeStateEntity
+            {
+                OccurrenceId = occurrenceId,
+                ActionId = actionId,
+                ConditionActive = false,
+                EpisodeNumber = resetOnReentry ? 0 : legacy.EpisodeNumber,
+                ExecutionCount = legacy.ExecutionCount,
+                LastScheduledAt = ToUtcDateTime(legacy.LastScheduledAt),
+                LastEvaluatedAt = evaluatedAt.UtcDateTime
+            };
+            context.ActionRuntimeStates.Add(entity);
+        }
+
+        if (conditionActive && !entity.ConditionActive && resetOnReentry)
+        {
+            entity.EpisodeNumber = Math.Max(0, entity.EpisodeNumber) + 1;
+            entity.ExecutionCount = 0;
+            entity.LastScheduledAt = null;
+        }
+        else if (conditionActive && entity.EpisodeNumber <= 0 && resetOnReentry)
+        {
+            entity.EpisodeNumber = 1;
+        }
+
+        entity.ConditionActive = conditionActive;
+        entity.LastEvaluatedAt = evaluatedAt.UtcDateTime;
+        await context.SaveChangesAsync(cancellationToken);
+        return Map(entity);
+    }
+
+    public async Task MarkActionScheduledAsync(
+        Guid occurrenceId,
+        Guid actionId,
+        int episodeNumber,
+        int executionNumber,
+        DateTimeOffset scheduledAt,
+        CancellationToken cancellationToken)
+    {
+        await InitializeAsync(cancellationToken);
+        await using var context = await _factory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.ActionRuntimeStates
+            .SingleOrDefaultAsync(x => x.OccurrenceId == occurrenceId && x.ActionId == actionId, cancellationToken);
+        if (entity is null)
+        {
+            entity = new ActionRuntimeStateEntity
+            {
+                OccurrenceId = occurrenceId,
+                ActionId = actionId,
+                ConditionActive = true,
+                EpisodeNumber = Math.Max(0, episodeNumber),
+                LastEvaluatedAt = scheduledAt.UtcDateTime
+            };
+            context.ActionRuntimeStates.Add(entity);
+        }
+
+        entity.ExecutionCount = Math.Max(entity.ExecutionCount, executionNumber);
+        entity.LastScheduledAt = scheduledAt.UtcDateTime;
+        entity.LastEvaluatedAt = scheduledAt.UtcDateTime;
+        await context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task AddDeliveriesAsync(
@@ -290,17 +423,32 @@ internal sealed class FlowStore : IFlowStore
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task CancelPendingDeliveriesAsync(Guid occurrenceId, CancellationToken cancellationToken)
+    public Task CancelPendingDeliveriesAsync(Guid occurrenceId, CancellationToken cancellationToken) =>
+        CancelPendingDeliveriesInternalAsync(occurrenceId, actionId: null, cancellationToken);
+
+    public Task CancelPendingDeliveriesAsync(Guid occurrenceId, Guid actionId, CancellationToken cancellationToken) =>
+        CancelPendingDeliveriesInternalAsync(occurrenceId, actionId, cancellationToken);
+
+    private async Task CancelPendingDeliveriesInternalAsync(
+        Guid occurrenceId,
+        Guid? actionId,
+        CancellationToken cancellationToken)
     {
         await InitializeAsync(cancellationToken);
         await using var context = await _factory.CreateDbContextAsync(cancellationToken);
-        var deliveries = await context.Deliveries
-            .Where(x => x.OccurrenceId == occurrenceId &&
-                        (x.Status == DeliveryStatus.Pending || x.Status == DeliveryStatus.RetryScheduled))
-            .ToArrayAsync(cancellationToken);
+        var query = context.Deliveries.Where(x =>
+            x.OccurrenceId == occurrenceId &&
+            (x.Status == DeliveryStatus.Pending || x.Status == DeliveryStatus.RetryScheduled));
+        if (actionId.HasValue)
+        {
+            query = query.Where(x => x.ActionId == actionId.Value);
+        }
+
+        var deliveries = await query.ToArrayAsync(cancellationToken);
         foreach (var delivery in deliveries)
         {
             delivery.Status = DeliveryStatus.Cancelled;
+            delivery.LastError = "Entrega cancelada porque a condição de monitoramento deixou de estar ativa.";
         }
         await context.SaveChangesAsync(cancellationToken);
     }
@@ -353,7 +501,12 @@ internal sealed class FlowStore : IFlowStore
         entity.LastError = Truncate(result.Error, 4000);
         entity.ExternalMessageId = Truncate(result.ExternalMessageId, 500);
 
-        if (result.Success)
+        if (result.IsSkipped)
+        {
+            entity.Status = DeliveryStatus.Skipped;
+            entity.SentAt = null;
+        }
+        else if (result.Success)
         {
             entity.Status = DeliveryStatus.Sent;
             entity.SentAt = DateTime.UtcNow;
@@ -467,6 +620,85 @@ internal sealed class FlowStore : IFlowStore
         };
     }
 
+    private static async Task EnsureAdditiveSchemaAsync(
+        FlowSentinelDbContext context,
+        CancellationToken cancellationToken)
+    {
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS action_runtime_states (
+                OccurrenceId TEXT NOT NULL,
+                ActionId TEXT NOT NULL,
+                ConditionActive INTEGER NOT NULL DEFAULT 0,
+                EpisodeNumber INTEGER NOT NULL DEFAULT 0,
+                ExecutionCount INTEGER NOT NULL DEFAULT 0,
+                LastScheduledAt TEXT NULL,
+                LastEvaluatedAt TEXT NOT NULL,
+                CONSTRAINT PK_action_runtime_states PRIMARY KEY (OccurrenceId, ActionId)
+            );
+            """,
+            cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS IX_action_runtime_states_ConditionActive_LastEvaluatedAt ON action_runtime_states (ConditionActive, LastEvaluatedAt);",
+            cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS automation_execution_history (
+                Id TEXT NOT NULL CONSTRAINT PK_automation_execution_history PRIMARY KEY,
+                AutomationId TEXT NOT NULL,
+                StartedAt TEXT NOT NULL,
+                CompletedAt TEXT NOT NULL,
+                Success INTEGER NOT NULL,
+                RecordCount INTEGER NOT NULL,
+                ChangedRecordCount INTEGER NOT NULL,
+                Error TEXT NULL
+            );
+            """,
+            cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS IX_automation_execution_history_AutomationId_StartedAt ON automation_execution_history (AutomationId, StartedAt);",
+            cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS record_change_history (
+                Id TEXT NOT NULL CONSTRAINT PK_record_change_history PRIMARY KEY,
+                AutomationId TEXT NOT NULL,
+                OccurrenceId TEXT NOT NULL,
+                RecordKey TEXT NOT NULL,
+                DetectedAt TEXT NOT NULL,
+                PreviousSnapshotJson TEXT NOT NULL,
+                CurrentSnapshotJson TEXT NOT NULL,
+                ChangedFieldsJson TEXT NOT NULL
+            );
+            """,
+            cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS IX_record_change_history_AutomationId_DetectedAt ON record_change_history (AutomationId, DetectedAt);",
+            cancellationToken);
+        await context.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS IX_record_change_history_OccurrenceId_DetectedAt ON record_change_history (OccurrenceId, DetectedAt);",
+            cancellationToken);
+    }
+
+    private static async Task<ActionScheduleState> BuildLegacyScheduleStateAsync(
+        FlowSentinelDbContext context,
+        Guid occurrenceId,
+        Guid actionId,
+        CancellationToken cancellationToken)
+    {
+        var query = context.Deliveries.AsNoTracking()
+            .Where(x => x.OccurrenceId == occurrenceId && x.ActionId == actionId);
+        var executionCount = await query.Select(x => (int?)x.ExecutionNumber).MaxAsync(cancellationToken) ?? 0;
+        var lastScheduledUtc = await query.Select(x => (DateTime?)x.CreatedAt).MaxAsync(cancellationToken);
+        return new ActionScheduleState
+        {
+            ExecutionCount = executionCount,
+            LastScheduledAt = ToDateTimeOffset(lastScheduledUtc),
+            ConditionActive = false,
+            EpisodeNumber = 0
+        };
+    }
+
     private async Task NormalizeStoredDateTimesAsync(
         FlowSentinelDbContext context,
         CancellationToken cancellationToken)
@@ -491,9 +723,11 @@ internal sealed class FlowStore : IFlowStore
                 return;
             }
 
+            var disabledLegacyAggregateActionIds = new HashSet<Guid>();
             var automations = await context.Automations.ToArrayAsync(cancellationToken);
             foreach (var entity in automations)
             {
+                UpgradeLegacyWorkbookDefinition(entity, disabledLegacyAggregateActionIds);
                 entity.LastRunAt = NormalizeUtc(entity.LastRunAt);
                 entity.NextRunAt = NormalizeUtc(entity.NextRunAt);
                 entity.CreatedAt = NormalizeUtc(entity.CreatedAt);
@@ -517,6 +751,37 @@ internal sealed class FlowStore : IFlowStore
                 context.Entry(entity).Property(x => x.ResolvedAt).IsModified = true;
             }
 
+            var runtimeStates = await context.ActionRuntimeStates.ToArrayAsync(cancellationToken);
+            foreach (var entity in runtimeStates)
+            {
+                entity.LastScheduledAt = NormalizeUtc(entity.LastScheduledAt);
+                entity.LastEvaluatedAt = NormalizeUtc(entity.LastEvaluatedAt);
+                context.Entry(entity).Property(x => x.LastScheduledAt).IsModified = true;
+                context.Entry(entity).Property(x => x.LastEvaluatedAt).IsModified = true;
+            }
+
+            var executionHistory = await context.AutomationExecutionHistory.ToArrayAsync(cancellationToken);
+            foreach (var entity in executionHistory)
+            {
+                entity.StartedAt = NormalizeUtc(entity.StartedAt);
+                entity.CompletedAt = NormalizeUtc(entity.CompletedAt);
+                context.Entry(entity).Property(x => x.StartedAt).IsModified = true;
+                context.Entry(entity).Property(x => x.CompletedAt).IsModified = true;
+            }
+
+            var changeHistory = await context.RecordChangeHistory.ToArrayAsync(cancellationToken);
+            foreach (var entity in changeHistory)
+            {
+                entity.DetectedAt = NormalizeUtc(entity.DetectedAt);
+                context.Entry(entity).Property(x => x.DetectedAt).IsModified = true;
+            }
+
+            var channels = await context.ChannelConfigurations.ToArrayAsync(cancellationToken);
+            var enabledChannelIds = channels
+                .Where(x => x.Enabled)
+                .Select(x => x.Id)
+                .ToHashSet();
+
             var deliveries = await context.Deliveries.ToArrayAsync(cancellationToken);
             foreach (var entity in deliveries)
             {
@@ -527,9 +792,30 @@ internal sealed class FlowStore : IFlowStore
                 context.Entry(entity).Property(x => x.CreatedAt).IsModified = true;
                 context.Entry(entity).Property(x => x.DueAt).IsModified = true;
                 context.Entry(entity).Property(x => x.SentAt).IsModified = true;
+
+                if (disabledLegacyAggregateActionIds.Contains(entity.ActionId) &&
+                    (entity.Status == DeliveryStatus.Pending ||
+                     entity.Status == DeliveryStatus.RetryScheduled ||
+                     entity.Status == DeliveryStatus.Processing))
+                {
+                    entity.Status = DeliveryStatus.Cancelled;
+                    entity.LastError = "Entrega cancelada pela atualização do assistente de planilhas: indicadores legados foram desativados.";
+                    context.Entry(entity).Property(x => x.Status).IsModified = true;
+                    context.Entry(entity).Property(x => x.LastError).IsModified = true;
+                }
+                else if (!enabledChannelIds.Contains(entity.ChannelConfigurationId) &&
+                         (entity.Status == DeliveryStatus.Pending ||
+                          entity.Status == DeliveryStatus.RetryScheduled ||
+                          entity.Status == DeliveryStatus.Processing ||
+                          entity.Status == DeliveryStatus.Failed))
+                {
+                    entity.Status = DeliveryStatus.Skipped;
+                    entity.LastError = "Canal removido ou desabilitado; entrega ignorada pela atualização sem registrar falha operacional.";
+                    context.Entry(entity).Property(x => x.Status).IsModified = true;
+                    context.Entry(entity).Property(x => x.LastError).IsModified = true;
+                }
             }
 
-            var channels = await context.ChannelConfigurations.ToArrayAsync(cancellationToken);
             foreach (var entity in channels)
             {
                 entity.CreatedAt = NormalizeUtc(entity.CreatedAt);
@@ -558,6 +844,113 @@ internal sealed class FlowStore : IFlowStore
                 await connection.CloseAsync();
             }
         }
+    }
+
+    private void UpgradeLegacyWorkbookDefinition(
+        AutomationEntity entity,
+        ISet<Guid> disabledAggregateActionIds)
+    {
+        try
+        {
+            var definition = JsonSerializer.Deserialize<AutomationDefinition>(entity.DefinitionJson, FlowJson.Options);
+            if (definition is null)
+            {
+                return;
+            }
+
+            var changed = false;
+            foreach (var action in definition.Actions)
+            {
+                foreach (var channel in action.Channels.Where(x => x.ChannelType == ChannelType.LocalWindows))
+                {
+                    if (channel.GroupingMode != NotificationGroupingMode.Individual || channel.GroupingWindowSeconds != 0)
+                    {
+                        channel.GroupingMode = NotificationGroupingMode.Individual;
+                        channel.GroupingWindowSeconds = 0;
+                        changed = true;
+                    }
+                }
+            }
+
+            var source = definition.Sources.FirstOrDefault(x => x.Type == SourceType.Excel &&
+                                                                 x.Configuration.ValueKind == JsonValueKind.Object);
+            var profileName = source is not null && source.Configuration.TryGetProperty("profileName", out var profileElement)
+                ? profileElement.GetString() ?? string.Empty
+                : string.Empty;
+            var mode = source is not null && source.Configuration.TryGetProperty("mode", out var modeElement)
+                ? modeElement.GetString() ?? string.Empty
+                : string.Empty;
+            var sourceName = source?.Name ?? string.Empty;
+            var isRp102 = source is not null &&
+                          string.Equals(mode, "SectionedMatrix", StringComparison.OrdinalIgnoreCase) &&
+                          (profileName.Contains("RP-102", StringComparison.OrdinalIgnoreCase) ||
+                           sourceName.Contains("RP-102", StringComparison.OrdinalIgnoreCase) ||
+                           definition.Name.Contains("RP-102", StringComparison.OrdinalIgnoreCase));
+
+            if (isRp102)
+            {
+                foreach (var action in definition.Actions.Where(x =>
+                             string.Equals(x.Name, "Mudança de quantidade por situação", StringComparison.OrdinalIgnoreCase) ||
+                             x.MessageTemplate.Contains("O indicador {{Metric}}", StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (action.Enabled)
+                    {
+                        action.Enabled = false;
+                        changed = true;
+                    }
+                    disabledAggregateActionIds.Add(action.Id);
+                }
+
+                var root = JsonNode.Parse(source!.Configuration.GetRawText()) as JsonObject;
+                var matrix = root?["matrix"] as JsonObject;
+                if (matrix is not null)
+                {
+                    changed |= SetBoolean(matrix, "generateAggregateRecords", false);
+                    changed |= SetBoolean(matrix, "aggregateGlobal", false);
+                    changed |= SetBoolean(matrix, "aggregateBySection", false);
+                    changed |= SetBoolean(matrix, "aggregateByCollaborator", false);
+                    changed |= SetBoolean(matrix, "includeBlankValuesInAggregates", false);
+                    using var upgradedDocument = JsonDocument.Parse(root!.ToJsonString(FlowJson.Options));
+                    source.Configuration = upgradedDocument.RootElement.Clone();
+                }
+            }
+
+            if (!changed)
+            {
+                return;
+            }
+
+            entity.DefinitionJson = JsonSerializer.Serialize(definition, FlowJson.Options);
+            entity.UpdatedAt = DateTime.UtcNow;
+            if (isRp102)
+            {
+                _logger.LogInformation(
+                    "Automação legada RP-102 '{AutomationName}' atualizada: indicadores agregados automáticos foram desativados para evitar notificações derivadas em excesso.",
+                    definition.Name);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Automação '{AutomationName}' atualizada para manter notificações locais do Windows no modo individual.",
+                    definition.Name);
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Não foi possível atualizar a automação legada '{AutomationName}'.", entity.Name);
+        }
+    }
+
+    private static bool SetBoolean(JsonObject target, string propertyName, bool value)
+    {
+        if (target[propertyName] is JsonValue currentNode &&
+            currentNode.TryGetValue<bool>(out var current) &&
+            current == value)
+        {
+            return false;
+        }
+        target[propertyName] = value;
+        return true;
     }
 
     private async Task SeedAsync(FlowSentinelDbContext context, CancellationToken cancellationToken)
@@ -686,6 +1079,14 @@ internal sealed class FlowStore : IFlowStore
         ExternalMessageId = item.ExternalMessageId,
         LastError = item.LastError,
         FieldsJson = JsonSerializer.Serialize(item.Fields, FlowJson.Options)
+    };
+
+    private static ActionScheduleState Map(ActionRuntimeStateEntity entity) => new()
+    {
+        ExecutionCount = entity.ExecutionCount,
+        LastScheduledAt = ToDateTimeOffset(entity.LastScheduledAt),
+        ConditionActive = entity.ConditionActive,
+        EpisodeNumber = entity.EpisodeNumber
     };
 
     private static AutomationStoreItem Map(AutomationEntity entity) => new()

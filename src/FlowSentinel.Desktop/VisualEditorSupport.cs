@@ -59,6 +59,7 @@ internal static class VisualEditorSupport
     {
         RecipientType.Fixed => "Endereço fixo",
         RecipientType.Field => "Campo da fonte",
+        RecipientType.Contact => "Contato do catálogo",
         RecipientType.Group => "Grupo de contatos",
         _ => value.ToString()
     };

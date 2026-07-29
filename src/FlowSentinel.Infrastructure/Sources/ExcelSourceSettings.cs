@@ -24,12 +24,16 @@ internal sealed class ExcelMatrixSettings
     public int CollaboratorColumn { get; set; } = 4;
     public int FirstPeriodColumn { get; set; } = 5;
     public int LastPeriodColumn { get; set; } = 20;
+    public int DataStartRow { get; set; }
+    public int DataEndRow { get; set; }
     public bool IncludeBlankStatuses { get; set; } = true;
-    public bool IncludeFormatting { get; set; } = true;
+    public bool IncludeBlankValuesInAggregates { get; set; }
+    public bool IncludeFormatting { get; set; }
     public bool GenerateCompanyRecords { get; set; } = true;
-    public bool GenerateAggregateRecords { get; set; } = true;
-    public bool AggregateBySection { get; set; } = true;
-    public bool AggregateByCollaborator { get; set; } = true;
+    public bool GenerateAggregateRecords { get; set; }
+    public bool AggregateGlobal { get; set; } = true;
+    public bool AggregateBySection { get; set; }
+    public bool AggregateByCollaborator { get; set; }
     public bool AutoDetectStandaloneSections { get; set; } = true;
 
     // Todos os valores abaixo são configuráveis. O parser não conhece termos contábeis.
