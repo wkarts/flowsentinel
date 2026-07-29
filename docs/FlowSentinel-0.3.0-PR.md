@@ -95,7 +95,7 @@ A fonte permite configurar:
 
 ### Correções dos logs de validação
 
-Os workflows apresentavam 0 erros de compilação, 6 avisos e uma falha de teste na detecção de célula destacada.
+Os primeiros workflows apresentavam uma falha de teste na detecção de célula destacada. Após a generalização do parser, os workflows `82432687883`, `82432691966` e `82432691981` passaram a interromper a compilação com dois erros `CS0103` na geração de agregados por entidade.
 
 Correções aplicadas:
 
@@ -108,6 +108,8 @@ Correções aplicadas:
 - correção de cabeçalho com marcador vazio;
 - remoção de vocabulário contábil do parser e dos valores padrão;
 - identificadores genéricos `Entity`, `ValuesByPeriod` e `EntitiesByCurrentValue`.
+- restauração explícita do acesso a `ExcelMatrixSettings` no método de agregação;
+- teste de regressão para o rótulo plural configurável de entidades nos agregados.
 
 ### Compatibilidade
 
@@ -131,6 +133,8 @@ Correções aplicadas:
 - [x] Avisos identificados tratados
 - [x] Motor desacoplado do perfil RP-102
 - [x] Teste de domínio genérico adicionado
+- [x] Erro `CS0103` dos workflows `82432687883`, `82432691966` e `82432691981` corrigido
+- [x] Teste de regressão do rótulo plural de agregados adicionado
 - [x] JSON validado
 - [x] YAML validado
 - [x] XML e projetos validados

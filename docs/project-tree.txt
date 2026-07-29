@@ -2,11 +2,11 @@ FlowSentinel 0.3.0 - Árvore do projeto
 
 .editorconfig
 .gitattributes
-.github/dependabot.yml
 .github/ISSUE_TEMPLATE/bug_report.yml
 .github/ISSUE_TEMPLATE/config.yml
 .github/ISSUE_TEMPLATE/feature_request.yml
 .github/PULL_REQUEST_TEMPLATE.md
+.github/dependabot.yml
 .github/workflows/ci.yml
 .github/workflows/codeql.yml
 .github/workflows/release.yml
@@ -16,6 +16,12 @@ CODE_OF_CONDUCT.md
 CONTRIBUTING.md
 Directory.Build.props
 Directory.Packages.props
+FlowSentinel.sln
+LICENSE
+NuGet.config
+README.md
+SECURITY.md
+docs/FlowSentinel-0.3.0-PR.md
 docs/architecture.md
 docs/automation-schema.md
 docs/channel-settings.md
@@ -25,21 +31,17 @@ docs/desktop-experience.md
 docs/examples/automation-clientes.json
 docs/examples/source-planilha-matriz-contabil.json
 docs/examples/source-planilha-matriz-generica.json
-docs/FlowSentinel-0.3.0-PR.md
 docs/github-flow.md
 docs/project-tree.txt
 docs/release-process.md
 docs/source-manifest.sha256
+docs/validation-aggregate-settings-scope-fix.md
 docs/validation-generic-matrix-fix.md
 docs/validation.md
 docs/visual-editor.md
 eng/Version.props
-FlowSentinel.sln
 global.json
 installer/FlowSentinel.Desktop.iss
-LICENSE
-NuGet.config
-README.md
 samples/clientes.csv
 scripts/bump-version.ps1
 scripts/init-repository.ps1
@@ -48,7 +50,6 @@ scripts/publish.ps1
 scripts/sign-artifacts.ps1
 scripts/uninstall-service.ps1
 scripts/validate.ps1
-SECURITY.md
 src/FlowSentinel.Application/Abstractions.cs
 src/FlowSentinel.Application/AutomationExecutor.cs
 src/FlowSentinel.Application/DependencyInjection.cs
@@ -65,7 +66,6 @@ src/FlowSentinel.Application/WorkerRuntimeSettings.cs
 src/FlowSentinel.Application/Workers.cs
 src/FlowSentinel.Desktop/AboutForm.cs
 src/FlowSentinel.Desktop/ActionEditorForm.cs
-src/FlowSentinel.Desktop/app.manifest
 src/FlowSentinel.Desktop/ApplicationMetadata.cs
 src/FlowSentinel.Desktop/Assets/FlowSentinel.ico
 src/FlowSentinel.Desktop/Assets/WWSoftwaresDeveloperLogo-1024.png
@@ -101,6 +101,7 @@ src/FlowSentinel.Desktop/TrayApplicationContext.cs
 src/FlowSentinel.Desktop/VisualEditorSupport.cs
 src/FlowSentinel.Desktop/WindowsServiceManager.cs
 src/FlowSentinel.Desktop/WorkbookMonitorForm.cs
+src/FlowSentinel.Desktop/app.manifest
 src/FlowSentinel.Domain/AutomationDefinition.cs
 src/FlowSentinel.Domain/Enums.cs
 src/FlowSentinel.Domain/FlowSentinel.Domain.csproj

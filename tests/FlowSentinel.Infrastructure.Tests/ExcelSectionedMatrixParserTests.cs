@@ -177,6 +177,14 @@ public sealed class ExcelSectionedMatrixParserTests
         Assert.Equal("FROTA NORTE", entity.Fields["Category"]);
         Assert.Equal("PENDENTE", entity.Fields["CurrentValue"]);
         Assert.Contains(records, x => x.Fields.GetValueOrDefault("Period") == "MANUTENÇÃO");
+
+        var aggregate = records.Single(x =>
+            x.Fields.GetValueOrDefault("__recordType") == "Aggregate" &&
+            x.Fields.GetValueOrDefault("Metric") == "EntitiesByCurrentValue" &&
+            x.Fields.GetValueOrDefault("Scope") == "Global" &&
+            x.Fields.GetValueOrDefault("Status") == "PENDENTE");
+        Assert.Equal("Equipamentos", aggregate.Fields["Unit"]);
+        Assert.Equal("1", aggregate.Fields["Count"]);
     }
 
     private static void AddCompany(

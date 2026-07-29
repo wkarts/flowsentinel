@@ -305,18 +305,18 @@ internal static class ExcelSectionedMatrixParser
     {
         var results = new List<DataRecord>();
         AddStatusCellAggregates(results, sourceAlias, statusFields, "Global", _ => "Todos");
-        AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Global", _ => "Todos");
+        AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Global", settings, _ => "Todos");
 
         if (settings.AggregateBySection)
         {
             AddStatusCellAggregates(results, sourceAlias, statusFields, "Category", x => x.GetValueOrDefault("Category") ?? x.GetValueOrDefault("Section") ?? "Sem grupo");
-            AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Category", x => x.GetValueOrDefault("Category") ?? x.GetValueOrDefault("Section") ?? "Sem grupo");
+            AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Category", settings, x => x.GetValueOrDefault("Category") ?? x.GetValueOrDefault("Section") ?? "Sem grupo");
         }
 
         if (settings.AggregateByCollaborator)
         {
             AddStatusCellAggregates(results, sourceAlias, statusFields, "Owner", x => x.GetValueOrDefault("Owner") ?? x.GetValueOrDefault("Collaborator") ?? "Sem responsável");
-            AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Owner", x => x.GetValueOrDefault("Owner") ?? x.GetValueOrDefault("Collaborator") ?? "Sem responsável");
+            AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Owner", settings, x => x.GetValueOrDefault("Owner") ?? x.GetValueOrDefault("Collaborator") ?? "Sem responsável");
         }
 
         return results;
@@ -362,6 +362,7 @@ internal static class ExcelSectionedMatrixParser
         string sourceAlias,
         IEnumerable<Dictionary<string, string?>> companyFields,
         string scope,
+        ExcelMatrixSettings settings,
         Func<Dictionary<string, string?>, string> groupSelector)
     {
         var groups = companyFields.GroupBy(x => new

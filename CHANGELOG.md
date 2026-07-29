@@ -8,6 +8,8 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 
 ### Corrigido
 
+- Corrigido o erro de compilação `CS0103` em `ExcelSectionedMatrixParser`, restaurando o acesso às configurações da matriz na geração de agregados por entidade.
+- Adicionado teste de regressão para garantir que agregados `EntitiesByCurrentValue` utilizem o nome plural configurado da entidade, sem fixar o domínio da planilha.
 - Eliminado o conflito entre o namespace `FlowSentinel.Application` e `System.Windows.Forms.Application`, corrigindo os erros `CS0234` em `Program`, `MainForm`, `TrayApplicationContext` e `StartupRegistration`.
 - Substituída a propriedade de estado `AllowClose` por campo privado e método interno, removendo definitivamente a origem do `WFO1000`.
 - Consolidada a correção de validação em um pacote cumulativo para evitar aplicação parcial de patches anteriores.
