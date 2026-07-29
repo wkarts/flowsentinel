@@ -9,12 +9,6 @@ namespace FlowSentinel.Infrastructure.Sources;
 
 internal static class ExcelSectionedMatrixParser
 {
-    private static readonly string[] KnownPeriodLabels =
-    [
-        "JAN", "FEV", "MAR", "ABR", "MAI", "JUN",
-        "JUL", "AGO", "SET", "OUT", "NOV", "DEZ", "BAL"
-    ];
-
     internal static IReadOnlyList<IXLWorksheet> ResolveWorksheets(
         XLWorkbook workbook,
         ExcelSourceSettings settings)
@@ -84,13 +78,16 @@ internal static class ExcelSectionedMatrixParser
             return [];
         }
 
+        var configuredPeriodLabels = SplitValues(matrix.PeriodLabels);
         var standaloneTitles = SplitValues(matrix.StandaloneSectionTitles);
+        var sectionTitlePrefixes = SplitValues(matrix.SectionTitlePrefixes);
+        var sectionNamePrefixesToRemove = SplitValues(matrix.SectionNamePrefixesToRemove);
         var sectionsWithoutPeriods = SplitValues(matrix.SectionsWithoutPeriods);
         var currentStatusExcludedPeriods = SplitValues(matrix.CurrentStatusExcludedPeriods);
         var records = new List<DataRecord>();
         var statusFields = new List<Dictionary<string, string?>>(Math.Max(100, lastRow));
         var companyFieldsForAggregates = new List<Dictionary<string, string?>>(Math.Max(20, lastRow));
-        var seenCompanyKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenEntityKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var year = ExtractYear(worksheet.Name, settings.WorksheetPattern)?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         SectionContext? currentSection = null;
         IReadOnlyList<PeriodColumn> inheritedPeriods = [];
@@ -114,7 +111,7 @@ internal static class ExcelSectionedMatrixParser
                 }
 
                 currentSection = new SectionContext(
-                    NormalizeSectionName(sectionOrCompany),
+                    NormalizeSectionName(sectionOrCompany, sectionNamePrefixesToRemove),
                     sectionOrCompany,
                     rowNumber,
                     periods,
@@ -129,11 +126,12 @@ internal static class ExcelSectionedMatrixParser
                     sectionOrCompany,
                     code,
                     collaborator,
-                    standaloneTitles))
+                    standaloneTitles,
+                    sectionTitlePrefixes))
             {
                 var withoutPeriods = sectionsWithoutPeriods.Contains(sectionOrCompany.Trim());
                 currentSection = new SectionContext(
-                    NormalizeSectionName(sectionOrCompany),
+                    NormalizeSectionName(sectionOrCompany, sectionNamePrefixesToRemove),
                     sectionOrCompany.Trim(),
                     rowNumber,
                     withoutPeriods ? [] : inheritedPeriods,
@@ -141,7 +139,14 @@ internal static class ExcelSectionedMatrixParser
                 continue;
             }
 
-            if (!IsDataRow(row, matrix, company, code, collaborator, currentSection?.AcceptCompanyOnlyRows == true))
+            if (!IsDataRow(
+                    row,
+                    matrix,
+                    company,
+                    code,
+                    collaborator,
+                    currentSection?.AcceptCompanyOnlyRows == true,
+                    configuredPeriodLabels))
             {
                 continue;
             }
@@ -156,9 +161,9 @@ internal static class ExcelSectionedMatrixParser
             }
 
             var companyIdentity = $"{worksheet.Name}|{currentSection.Name}|{companyKey}";
-            if (!seenCompanyKeys.Add(companyIdentity))
+            if (!seenEntityKeys.Add(companyIdentity))
             {
-                warnings.Add($"A chave da empresa '{companyKey}' aparece mais de uma vez na seção '{currentSection.Name}' da aba '{worksheet.Name}'.");
+                warnings.Add($"A chave da entidade '{companyKey}' aparece mais de uma vez no grupo '{currentSection.Name}' da aba '{worksheet.Name}'.");
             }
 
             var periodValues = currentSection.Periods
@@ -168,17 +173,18 @@ internal static class ExcelSectionedMatrixParser
                 periodValues,
                 year,
                 matrix.CurrentStatusMode,
-                currentStatusExcludedPeriods);
+                currentStatusExcludedPeriods,
+                matrix.CalendarPeriodNumbers);
             var currentStatus = currentValue?.Status ?? string.Empty;
             var currentPeriod = currentValue?.Period.Key ?? string.Empty;
             var currentMeaning = GetStatusMeaning(matrix, currentStatus);
 
             if (matrix.GenerateCompanyRecords)
             {
-                var companyRecordKey = $"company|{worksheet.Name}|{currentSection.Name}|{companyKey}";
+                var companyRecordKey = $"entity|{worksheet.Name}|{currentSection.Name}|{companyKey}";
                 var companyFields = CreateBaseFields(
                     companyRecordKey,
-                    "Company",
+                    "Entity",
                     worksheet.Name,
                     year,
                     currentSection,
@@ -193,7 +199,10 @@ internal static class ExcelSectionedMatrixParser
                 companyFields["CurrentPeriod"] = string.IsNullOrWhiteSpace(currentPeriod) ? null : currentPeriod;
                 companyFields["CurrentStatus"] = string.IsNullOrWhiteSpace(currentStatus) ? null : currentStatus;
                 companyFields["CurrentStatusDisplay"] = string.IsNullOrWhiteSpace(currentStatus) ? "(vazio)" : currentStatus;
+                companyFields["CurrentValue"] = companyFields["CurrentStatus"];
+                companyFields["CurrentValueDisplay"] = companyFields["CurrentStatusDisplay"];
                 companyFields["StatusMeaning"] = string.IsNullOrWhiteSpace(currentMeaning) ? null : currentMeaning;
+                companyFields["ValueMeaning"] = companyFields["StatusMeaning"];
                 records.Add(CreateRecord(sourceAlias, companyRecordKey, companyFields));
                 companyFieldsForAggregates.Add(companyFields);
             }
@@ -225,10 +234,14 @@ internal static class ExcelSectionedMatrixParser
                 fields["PeriodOccurrence"] = item.Period.Occurrence.ToString(CultureInfo.InvariantCulture);
                 fields["Status"] = string.IsNullOrWhiteSpace(status) ? null : status;
                 fields["StatusDisplay"] = string.IsNullOrWhiteSpace(status) ? "(vazio)" : status;
+                fields["Value"] = fields["Status"];
+                fields["ValueDisplay"] = fields["StatusDisplay"];
                 fields["StatusMeaning"] = GetStatusMeaning(matrix, status);
+                fields["ValueMeaning"] = fields["StatusMeaning"];
                 fields["CurrentPeriod"] = string.IsNullOrWhiteSpace(currentPeriod) ? null : currentPeriod;
                 fields["CurrentStatus"] = string.IsNullOrWhiteSpace(currentStatus) ? null : currentStatus;
-                fields["CellAddress"] = item.Cell.Address.ToString();
+                fields["CurrentValue"] = fields["CurrentStatus"];
+                fields["CellAddress"] = item.Cell.Address?.ToString() ?? string.Empty;
                 fields["ColumnNumber"] = item.Period.ColumnNumber.ToString(CultureInfo.InvariantCulture);
                 fields["FillColor"] = formatting.FillColor;
                 fields["FillPattern"] = formatting.Pattern;
@@ -268,7 +281,7 @@ internal static class ExcelSectionedMatrixParser
                 cells.Add(new WorkbookWorksheetCell(
                     row,
                     column,
-                    cell.Address.ToString(),
+                    cell.Address?.ToString() ?? string.Empty,
                     GetText(cell),
                     formatting.FillColor,
                     formatting.IsHighlighted,
@@ -296,14 +309,14 @@ internal static class ExcelSectionedMatrixParser
 
         if (settings.AggregateBySection)
         {
-            AddStatusCellAggregates(results, sourceAlias, statusFields, "Section", x => x.GetValueOrDefault("Section") ?? "Sem seção");
-            AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Section", x => x.GetValueOrDefault("Section") ?? "Sem seção");
+            AddStatusCellAggregates(results, sourceAlias, statusFields, "Category", x => x.GetValueOrDefault("Category") ?? x.GetValueOrDefault("Section") ?? "Sem grupo");
+            AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Category", x => x.GetValueOrDefault("Category") ?? x.GetValueOrDefault("Section") ?? "Sem grupo");
         }
 
         if (settings.AggregateByCollaborator)
         {
-            AddStatusCellAggregates(results, sourceAlias, statusFields, "Collaborator", x => x.GetValueOrDefault("Collaborator") ?? "Sem colaborador");
-            AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Collaborator", x => x.GetValueOrDefault("Collaborator") ?? "Sem colaborador");
+            AddStatusCellAggregates(results, sourceAlias, statusFields, "Owner", x => x.GetValueOrDefault("Owner") ?? x.GetValueOrDefault("Collaborator") ?? "Sem responsável");
+            AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Owner", x => x.GetValueOrDefault("Owner") ?? x.GetValueOrDefault("Collaborator") ?? "Sem responsável");
         }
 
         return results;
@@ -331,7 +344,7 @@ internal static class ExcelSectionedMatrixParser
             AddAggregateRecord(
                 destination,
                 sourceAlias,
-                metric: "StatusCells",
+                metric: "ValuesByPeriod",
                 unit: "Células",
                 scope,
                 group.Key.Worksheet,
@@ -363,15 +376,15 @@ internal static class ExcelSectionedMatrixParser
         foreach (var group in groups)
         {
             var distinctCompanies = group
-                .Select(x => x.GetValueOrDefault("CompanyKey") ?? string.Empty)
+                .Select(x => x.GetValueOrDefault("EntityKey") ?? x.GetValueOrDefault("CompanyKey") ?? string.Empty)
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Count();
             AddAggregateRecord(
                 destination,
                 sourceAlias,
-                metric: "CompaniesByCurrentStatus",
-                unit: "Clientes",
+                metric: "EntitiesByCurrentValue",
+                unit: string.IsNullOrWhiteSpace(settings.EntityPluralName) ? "Registros" : settings.EntityPluralName.Trim(),
                 scope,
                 group.Key.Worksheet,
                 group.Key.Year,
@@ -412,6 +425,9 @@ internal static class ExcelSectionedMatrixParser
             ["Status"] = statusDisplay == "(vazio)" ? null : statusDisplay,
             ["StatusDisplay"] = statusDisplay,
             ["StatusMeaning"] = string.IsNullOrWhiteSpace(statusMeaning) ? null : statusMeaning,
+            ["Value"] = statusDisplay == "(vazio)" ? null : statusDisplay,
+            ["ValueDisplay"] = statusDisplay,
+            ["ValueMeaning"] = string.IsNullOrWhiteSpace(statusMeaning) ? null : statusMeaning,
             ["Count"] = count.ToString(CultureInfo.InvariantCulture)
         };
         destination.Add(CreateRecord(sourceAlias, recordKey, fields));
@@ -440,6 +456,10 @@ internal static class ExcelSectionedMatrixParser
         ["Company"] = company,
         ["Code"] = string.IsNullOrWhiteSpace(code) ? null : code,
         ["Collaborator"] = string.IsNullOrWhiteSpace(collaborator) ? null : collaborator,
+        ["EntityKey"] = companyKey,
+        ["Entity"] = company,
+        ["Owner"] = string.IsNullOrWhiteSpace(collaborator) ? null : collaborator,
+        ["Category"] = section.Name,
         ["RowNumber"] = rowNumber.ToString(CultureInfo.InvariantCulture)
     };
 
@@ -459,12 +479,13 @@ internal static class ExcelSectionedMatrixParser
         IReadOnlyList<PeriodValue> periodValues,
         string yearText,
         string mode,
-        ISet<string> excludedPeriods)
+        ISet<string> excludedPeriods,
+        IReadOnlyDictionary<string, int>? calendarPeriodNumbers)
     {
         var candidates = periodValues
             .Where(x => !string.IsNullOrWhiteSpace(x.Status) && !excludedPeriods.Contains(x.Period.BaseLabel))
             .ToArray();
-        if (!mode.Equals("CalendarPeriod", StringComparison.OrdinalIgnoreCase) ||
+        if (!string.Equals(mode, "CalendarPeriod", StringComparison.OrdinalIgnoreCase) ||
             !int.TryParse(yearText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var worksheetYear))
         {
             return candidates.LastOrDefault();
@@ -482,27 +503,30 @@ internal static class ExcelSectionedMatrixParser
 
         return candidates.LastOrDefault(x =>
         {
-            var month = MonthNumber(x.Period.BaseLabel);
+            var month = ResolveCalendarPeriodNumber(x.Period.BaseLabel, calendarPeriodNumbers);
             return month is null || month <= today.Month;
         });
     }
 
-    private static int? MonthNumber(string label) => label.ToUpperInvariant() switch
+    private static int? ResolveCalendarPeriodNumber(
+        string label,
+        IReadOnlyDictionary<string, int>? configuredNumbers)
     {
-        "JAN" => 1,
-        "FEV" => 2,
-        "MAR" => 3,
-        "ABR" => 4,
-        "MAI" => 5,
-        "JUN" => 6,
-        "JUL" => 7,
-        "AGO" => 8,
-        "SET" => 9,
-        "OUT" => 10,
-        "NOV" => 11,
-        "DEZ" => 12,
-        _ => null
-    };
+        if (configuredNumbers is not null)
+        {
+            var configured = configuredNumbers.FirstOrDefault(
+                x => string.Equals(x.Key.Trim(), label.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (configured.Key is not null && configured.Value is >= 1 and <= 12)
+            {
+                return configured.Value;
+            }
+        }
+
+        return int.TryParse(label, NumberStyles.Integer, CultureInfo.InvariantCulture, out var numeric) &&
+               numeric is >= 1 and <= 12
+            ? numeric
+            : null;
+    }
 
     private static bool IsMatrixHeader(
         IXLRow row,
@@ -511,12 +535,14 @@ internal static class ExcelSectionedMatrixParser
         string sectionText,
         int lastColumn)
     {
-        if (string.Equals(numberText, matrix.HeaderMarker, StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(matrix.HeaderMarker) &&
+            string.Equals(numberText, matrix.HeaderMarker.Trim(), StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        return sectionText.Contains("EMPRESAS", StringComparison.OrdinalIgnoreCase) &&
+        return !string.IsNullOrWhiteSpace(matrix.HeaderTextContains) &&
+               sectionText.Contains(matrix.HeaderTextContains.Trim(), StringComparison.OrdinalIgnoreCase) &&
                BuildPeriodColumns(row, matrix, lastColumn).Count > 0;
     }
 
@@ -527,7 +553,8 @@ internal static class ExcelSectionedMatrixParser
         string sectionText,
         string code,
         string collaborator,
-        ISet<string> configuredTitles)
+        ISet<string> configuredTitles,
+        ISet<string> configuredPrefixes)
     {
         if (!matrix.AutoDetectStandaloneSections || string.IsNullOrWhiteSpace(sectionText))
         {
@@ -547,9 +574,9 @@ internal static class ExcelSectionedMatrixParser
         }
 
         return configuredTitles.Contains(sectionText.Trim()) ||
-               sectionText.StartsWith("EMPRESAS ", StringComparison.OrdinalIgnoreCase) ||
-               sectionText.Equals("SEM MOVIMENTO", StringComparison.OrdinalIgnoreCase) ||
-               sectionText.Equals("SIMPLES", StringComparison.OrdinalIgnoreCase);
+               configuredPrefixes.Any(prefix =>
+                   !string.IsNullOrWhiteSpace(prefix) &&
+                   sectionText.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsDataRow(
@@ -558,9 +585,10 @@ internal static class ExcelSectionedMatrixParser
         string company,
         string code,
         string collaborator,
-        bool acceptCompanyOnlyRow)
+        bool acceptCompanyOnlyRow,
+        ISet<string> configuredPeriodLabels)
     {
-        if (string.IsNullOrWhiteSpace(company) || KnownPeriodLabels.Contains(company.Trim(), StringComparer.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(company) || configuredPeriodLabels.Contains(company.Trim()))
         {
             return false;
         }
@@ -608,11 +636,12 @@ internal static class ExcelSectionedMatrixParser
         return periods;
     }
 
-    private static bool IsWorksheetMatch(string value, string pattern)
+    private static bool IsWorksheetMatch(string value, string? pattern)
     {
         try
         {
-            return Regex.IsMatch(value, pattern, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2));
+            return !string.IsNullOrWhiteSpace(pattern) &&
+                   Regex.IsMatch(value, pattern, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2));
         }
         catch (ArgumentException)
         {
@@ -620,10 +649,15 @@ internal static class ExcelSectionedMatrixParser
         }
     }
 
-    private static int? ExtractYear(string value, string pattern)
+    private static int? ExtractYear(string value, string? pattern)
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(pattern))
+            {
+                return null;
+            }
+
             var match = Regex.Match(value, pattern, RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2));
             if (!match.Success)
             {
@@ -639,12 +673,17 @@ internal static class ExcelSectionedMatrixParser
         }
     }
 
-    private static string NormalizeSectionName(string value)
+    private static string NormalizeSectionName(string value, ISet<string> prefixesToRemove)
     {
         var normalized = value.Trim();
-        if (normalized.StartsWith("EMPRESAS ", StringComparison.OrdinalIgnoreCase))
+        foreach (var prefix in prefixesToRemove.OrderByDescending(x => x.Length))
         {
-            normalized = normalized[9..].Trim();
+            if (!string.IsNullOrWhiteSpace(prefix) &&
+                normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                normalized = normalized[prefix.Length..].Trim();
+                break;
+            }
         }
 
         return string.IsNullOrWhiteSpace(normalized) ? "Sem seção" : normalized;
@@ -685,15 +724,32 @@ internal static class ExcelSectionedMatrixParser
         var pattern = cell.Style.Fill.PatternType.ToString();
         var background = ExtractColor(cell.Style.Fill.BackgroundColor);
         var foreground = ExtractColor(cell.Style.Fill.PatternColor);
-        var fill = string.Equals(pattern, "Solid", StringComparison.OrdinalIgnoreCase)
-            ? foreground
-            : IsUsableColor(background) ? background : foreground;
-        var highlighted = !string.Equals(pattern, "None", StringComparison.OrdinalIgnoreCase) &&
-                          IsUsableColor(fill) &&
-                          !fill.Equals("#FFFFFF", StringComparison.OrdinalIgnoreCase) &&
-                          !fill.Equals("#000000", StringComparison.OrdinalIgnoreCase);
+        var fill = SelectVisibleFillColor(pattern, background, foreground);
+        var highlighted = IsHighlightColor(background) || IsHighlightColor(foreground);
         return new CellFormatting(fill, pattern, highlighted);
     }
+
+    private static string SelectVisibleFillColor(string pattern, string background, string foreground)
+    {
+        if (string.Equals(pattern, "Solid", StringComparison.OrdinalIgnoreCase) && IsUsableColor(foreground))
+        {
+            return foreground;
+        }
+
+        if (IsUsableColor(background))
+        {
+            return background;
+        }
+
+        return IsUsableColor(foreground) ? foreground : string.Empty;
+    }
+
+    private static bool IsHighlightColor(string value) =>
+        IsUsableColor(value) &&
+        !value.Equals("#FFFFFF", StringComparison.OrdinalIgnoreCase) &&
+        !value.Equals("#FFFFFFFF", StringComparison.OrdinalIgnoreCase) &&
+        !value.Equals("#000000", StringComparison.OrdinalIgnoreCase) &&
+        !value.Equals("#FF000000", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsUsableColor(string value) =>
         !string.IsNullOrWhiteSpace(value) &&
@@ -726,9 +782,11 @@ internal static class ExcelSectionedMatrixParser
         }
     }
 
-    private static HashSet<string> SplitValues(string value) =>
-        value.Split(['|', ';', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    private static HashSet<string> SplitValues(string? value) =>
+        (value ?? string.Empty)
+            .Split(['|', ';', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
 
     private static void ValidateColumns(ExcelMatrixSettings matrix)
     {

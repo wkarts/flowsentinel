@@ -84,7 +84,7 @@ internal sealed class MainForm : Form
 
         AddButton(toolbar, "Atualizar", async (_, _) => await RefreshAsync());
         AddButton(toolbar, "Executar agora", async (_, _) => await ExecuteSelectedAsync());
-        AddButton(toolbar, "Novo monitoramento guiado", async (_, _) => await CreateAccountingMonitoringAsync());
+        AddButton(toolbar, "Modelo RP-102 (opcional)", async (_, _) => await CreateStructuredWorkbookMonitoringAsync());
         AddButton(toolbar, "Painel de planilhas", (_, _) => OpenWorkbookMonitoring());
         AddButton(toolbar, "Nova automação avançada", async (_, _) => await CreateAutomationAsync());
         AddButton(toolbar, "Editar", async (_, _) => await EditAutomationAsync());
@@ -163,12 +163,12 @@ internal sealed class MainForm : Form
         });
     }
 
-    private async Task CreateAccountingMonitoringAsync()
+    private async Task CreateStructuredWorkbookMonitoringAsync()
     {
         try
         {
             var channels = await _store.GetChannelConfigurationsAsync(CancellationToken.None);
-            using var wizard = new AccountingMonitorWizardForm(
+            using var wizard = new StructuredWorkbookWizardForm(
                 channels.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToArray(),
                 _workbookMonitoringService);
             if (wizard.ShowDialog(this) == DialogResult.OK && wizard.Definition is not null)

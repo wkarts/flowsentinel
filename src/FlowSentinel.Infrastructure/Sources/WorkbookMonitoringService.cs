@@ -48,7 +48,7 @@ internal sealed class WorkbookMonitoringService : IWorkbookMonitoringService
                 Worksheet = x.Worksheet,
                 Period = x.Period,
                 Status = string.IsNullOrWhiteSpace(x.Status) ? "(vazio)" : x.Status,
-                StatusMeaning = x.StatusMeaning,
+                StatusMeaning = string.IsNullOrWhiteSpace(x.ValueMeaning) ? x.StatusMeaning : x.ValueMeaning,
                 Count = x.Count ?? 0
             })
             .OrderBy(x => x.Worksheet, StringComparer.OrdinalIgnoreCase)
@@ -74,6 +74,7 @@ internal sealed class WorkbookMonitoringService : IWorkbookMonitoringService
             StatusSummaries = summaries,
             Warnings = result.Warnings.ToArray(),
             Visuals = visuals,
+            Labels = CreateLabels(settings),
             AnalyzedAt = DateTimeOffset.Now
         };
     }
@@ -126,7 +127,7 @@ internal sealed class WorkbookMonitoringService : IWorkbookMonitoringService
             Changes = changes
                 .OrderBy(x => x.Worksheet, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(x => x.Section, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(x => x.Company, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Entity, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(x => x.Period, StringComparer.OrdinalIgnoreCase)
                 .ToArray()
         };
@@ -149,6 +150,9 @@ internal sealed class WorkbookMonitoringService : IWorkbookMonitoringService
                 RecordType = x.RecordType,
                 Worksheet = x.Worksheet,
                 Section = x.Section,
+                Entity = x.Entity,
+                Owner = x.Owner,
+                Category = x.Category,
                 Company = x.Company,
                 Code = x.Code,
                 Collaborator = x.Collaborator,
@@ -207,12 +211,36 @@ internal sealed class WorkbookMonitoringService : IWorkbookMonitoringService
         }
     }
 
+    private static WorkbookMonitoringLabels CreateLabels(ExcelSourceSettings settings)
+    {
+        var matrix = settings.Matrix ?? new ExcelMatrixSettings();
+        static string Use(string? value, string fallback) =>
+            string.IsNullOrWhiteSpace(value) ? fallback : value.Trim();
+
+        return new WorkbookMonitoringLabels
+        {
+            ProfileName = settings.ProfileName?.Trim() ?? string.Empty,
+            EntitySingular = Use(matrix.EntitySingularName, "Registro"),
+            EntityPlural = Use(matrix.EntityPluralName, "Registros"),
+            Owner = Use(matrix.OwnerName, "Responsável"),
+            Category = Use(matrix.CategoryName, "Grupo"),
+            Period = Use(matrix.PeriodName, "Período"),
+            Code = Use(matrix.CodeName, "Código"),
+            Value = Use(matrix.ValueName, "Valor")
+        };
+    }
+
     private string BaselinePath(Guid sourceId) =>
         Path.Combine(_paths.DataDirectory, "monitor-baselines", $"{sourceId:N}.json");
 
     private static WorkbookMonitoringRecord MapRecord(DataRecord record)
     {
         string Get(string key) => record.Fields.GetValueOrDefault(key) ?? string.Empty;
+        string GetFirst(string primary, string fallback)
+        {
+            var value = Get(primary);
+            return string.IsNullOrWhiteSpace(value) ? Get(fallback) : value;
+        }
         int? GetInt(string key) => int.TryParse(Get(key), out var value) ? value : null;
         return new WorkbookMonitoringRecord
         {
@@ -223,6 +251,13 @@ internal sealed class WorkbookMonitoringService : IWorkbookMonitoringService
             Year = Get("Year"),
             Section = Get("Section"),
             Regime = Get("Regime"),
+            EntityKey = GetFirst("EntityKey", "CompanyKey"),
+            Entity = GetFirst("Entity", "Company"),
+            Owner = GetFirst("Owner", "Collaborator"),
+            Category = GetFirst("Category", "Section"),
+            Value = GetFirst("Value", "Status"),
+            CurrentValue = GetFirst("CurrentValue", "CurrentStatus"),
+            ValueMeaning = GetFirst("ValueMeaning", "StatusMeaning"),
             CompanyKey = Get("CompanyKey"),
             Company = Get("Company"),
             Code = Get("Code"),
@@ -272,9 +307,12 @@ internal sealed class WorkbookMonitoringService : IWorkbookMonitoringService
             RecordType = current?.RecordType ?? previous?.RecordType ?? string.Empty,
             Worksheet = current?.Worksheet ?? previous?.Worksheet ?? string.Empty,
             Section = current?.Section ?? previous?.Section ?? string.Empty,
-            Company = current?.Company ?? previous?.Company ?? string.Empty,
+            Entity = current?.Entity ?? previous?.Entity ?? current?.Company ?? previous?.Company ?? string.Empty,
+            Owner = current?.Owner ?? previous?.Owner ?? current?.Collaborator ?? previous?.Collaborator ?? string.Empty,
+            Category = current?.Category ?? previous?.Category ?? current?.Section ?? previous?.Section ?? string.Empty,
+            Company = current?.Company ?? previous?.Company ?? current?.Entity ?? previous?.Entity ?? string.Empty,
             Code = current?.Code ?? previous?.Code ?? string.Empty,
-            Collaborator = current?.Collaborator ?? previous?.Collaborator ?? string.Empty,
+            Collaborator = current?.Collaborator ?? previous?.Collaborator ?? current?.Owner ?? previous?.Owner ?? string.Empty,
             Period = current?.Period ?? previous?.Period ?? string.Empty,
             CellAddress = current?.CellAddress ?? previous?.CellAddress ?? string.Empty,
             ChangedFields = string.Join(", ", keys),
@@ -295,11 +333,16 @@ internal sealed class WorkbookMonitoringService : IWorkbookMonitoringService
         {
             return count?.ToString() ?? fields.GetValueOrDefault("Count") ?? string.Empty;
         }
-        if (string.Equals(recordType, "Company", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(recordType, "Company", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(recordType, "Entity", StringComparison.OrdinalIgnoreCase))
         {
-            return fields.GetValueOrDefault("CurrentStatus") ?? collaborator ?? string.Empty;
+            return fields.GetValueOrDefault("CurrentValue") ??
+                   fields.GetValueOrDefault("CurrentStatus") ??
+                   fields.GetValueOrDefault("Owner") ??
+                   collaborator ??
+                   string.Empty;
         }
-        return status ?? fields.GetValueOrDefault("Status") ?? string.Empty;
+        return fields.GetValueOrDefault("Value") ?? status ?? fields.GetValueOrDefault("Status") ?? string.Empty;
     }
     private sealed class BaselineDocument
     {
@@ -315,6 +358,9 @@ internal sealed class WorkbookMonitoringService : IWorkbookMonitoringService
         public string RecordType { get; set; } = string.Empty;
         public string Worksheet { get; set; } = string.Empty;
         public string Section { get; set; } = string.Empty;
+        public string Entity { get; set; } = string.Empty;
+        public string Owner { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
         public string Company { get; set; } = string.Empty;
         public string Code { get; set; } = string.Empty;
         public string Collaborator { get; set; } = string.Empty;

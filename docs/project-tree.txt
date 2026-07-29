@@ -24,10 +24,13 @@ docs/delivery-standard.md
 docs/desktop-experience.md
 docs/examples/automation-clientes.json
 docs/examples/source-planilha-matriz-contabil.json
+docs/examples/source-planilha-matriz-generica.json
+docs/FlowSentinel-0.3.0-PR.md
 docs/github-flow.md
 docs/project-tree.txt
 docs/release-process.md
 docs/source-manifest.sha256
+docs/validation-generic-matrix-fix.md
 docs/validation.md
 docs/visual-editor.md
 eng/Version.props
@@ -61,7 +64,6 @@ src/FlowSentinel.Application/WorkbookMonitoringModels.cs
 src/FlowSentinel.Application/WorkerRuntimeSettings.cs
 src/FlowSentinel.Application/Workers.cs
 src/FlowSentinel.Desktop/AboutForm.cs
-src/FlowSentinel.Desktop/AccountingMonitorWizardForm.cs
 src/FlowSentinel.Desktop/ActionEditorForm.cs
 src/FlowSentinel.Desktop/app.manifest
 src/FlowSentinel.Desktop/ApplicationMetadata.cs
@@ -94,6 +96,7 @@ src/FlowSentinel.Desktop/SourceEditorForm.cs
 src/FlowSentinel.Desktop/SplashForm.cs
 src/FlowSentinel.Desktop/StartupRegistration.cs
 src/FlowSentinel.Desktop/StatusDictionaryForm.cs
+src/FlowSentinel.Desktop/StructuredWorkbookWizardForm.cs
 src/FlowSentinel.Desktop/TrayApplicationContext.cs
 src/FlowSentinel.Desktop/VisualEditorSupport.cs
 src/FlowSentinel.Desktop/WindowsServiceManager.cs

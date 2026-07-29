@@ -67,7 +67,7 @@ internal sealed class WorkbookMonitorForm : Form
         AddButton(toolbar, "Analisar agora", async (_, _) => await AnalyzeAsync());
         AddButton(toolbar, "Comparar alterações", async (_, _) => await CompareAsync());
         AddButton(toolbar, "Gravar linha de base", async (_, _) => await SaveBaselineAsync());
-        AddButton(toolbar, "Legenda de situações", async (_, _) => await EditStatusDictionaryAsync());
+        AddButton(toolbar, "Legenda de valores", async (_, _) => await EditStatusDictionaryAsync());
         AddButton(toolbar, "Abrir planilha", (_, _) => OpenWorkbook());
         AddButton(toolbar, "Fechar", (_, _) => Close());
         root.Controls.Add(toolbar, 0, 0);
@@ -124,7 +124,7 @@ internal sealed class WorkbookMonitorForm : Form
 
     private TabPage BuildSummaryTab()
     {
-        var page = new TabPage("Quantidades por situação");
+        var page = new TabPage("Quantidades por valor");
         _summaryGrid.Dock = DockStyle.Fill;
         _summaryGrid.AutoGenerateColumns = false;
         _summaryGrid.Columns.Add(TextColumn(nameof(SummaryRow.Metric), "Indicador", 105));
@@ -132,7 +132,7 @@ internal sealed class WorkbookMonitorForm : Form
         _summaryGrid.Columns.Add(TextColumn(nameof(SummaryRow.Group), "Grupo", 120));
         _summaryGrid.Columns.Add(TextColumn(nameof(SummaryRow.Worksheet), "Aba", 90));
         _summaryGrid.Columns.Add(TextColumn(nameof(SummaryRow.Period), "Período", 60));
-        _summaryGrid.Columns.Add(TextColumn(nameof(SummaryRow.Status), "Situação", 55));
+        _summaryGrid.Columns.Add(TextColumn(nameof(SummaryRow.Status), "Valor", 55));
         _summaryGrid.Columns.Add(TextColumn(nameof(SummaryRow.Meaning), "Significado", 135));
         _summaryGrid.Columns.Add(TextColumn(nameof(SummaryRow.Count), "Quantidade", 60));
         page.Controls.Add(_summaryGrid);
@@ -141,7 +141,7 @@ internal sealed class WorkbookMonitorForm : Form
 
     private TabPage BuildRecordsTab()
     {
-        var page = new TabPage("Empresas e registros");
+        var page = new TabPage("Entidades e registros");
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -153,12 +153,12 @@ internal sealed class WorkbookMonitorForm : Form
         ConfigureFilter(_periodFilter, 100);
         ConfigureFilter(_statusFilter, 100);
         _companyFilter.Width = 190;
-        _companyFilter.PlaceholderText = "Empresa ou código";
+        _companyFilter.PlaceholderText = "Entidade ou código";
         foreach (var control in new Control[]
                  {
                      Labeled("Tipo", _recordTypeFilter), Labeled("Seção", _sectionFilter),
-                     Labeled("Colaborador", _collaboratorFilter), Labeled("Período", _periodFilter),
-                     Labeled("Situação", _statusFilter), Labeled("Pesquisar", _companyFilter)
+                     Labeled("Responsável", _collaboratorFilter), Labeled("Período", _periodFilter),
+                     Labeled("Valor", _statusFilter), Labeled("Pesquisar", _companyFilter)
                  })
         {
             filters.Controls.Add(control);
@@ -172,13 +172,13 @@ internal sealed class WorkbookMonitorForm : Form
         _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.Type), "Tipo", 55));
         _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.Worksheet), "Aba", 75));
         _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.Section), "Seção", 100));
-        _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.Company), "Empresa", 170));
+        _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.Entity), "Entidade", 170));
         _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.Code), "Código", 65));
-        _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.Collaborator), "Colaborador", 85));
+        _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.Owner), "Responsável", 85));
         _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.Period), "Período", 55));
-        _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.Status), "Situação", 55));
+        _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.Value), "Valor", 55));
         _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.Meaning), "Significado", 110));
-        _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.CurrentStatus), "Situação atual", 70));
+        _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.CurrentValue), "Valor atual", 70));
         _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.Count), "Quantidade", 55));
         _recordsGrid.Columns.Add(TextColumn(nameof(RecordRow.CellAddress), "Célula", 45));
         layout.Controls.Add(_recordsGrid, 0, 1);
@@ -195,7 +195,7 @@ internal sealed class WorkbookMonitorForm : Form
         _changesGrid.Columns.Add(TextColumn(nameof(ChangeRow.RecordType), "Tipo", 55));
         _changesGrid.Columns.Add(TextColumn(nameof(ChangeRow.Worksheet), "Aba", 65));
         _changesGrid.Columns.Add(TextColumn(nameof(ChangeRow.Section), "Seção", 95));
-        _changesGrid.Columns.Add(TextColumn(nameof(ChangeRow.Company), "Empresa", 160));
+        _changesGrid.Columns.Add(TextColumn(nameof(ChangeRow.Entity), "Entidade", 160));
         _changesGrid.Columns.Add(TextColumn(nameof(ChangeRow.Code), "Código", 55));
         _changesGrid.Columns.Add(TextColumn(nameof(ChangeRow.Period), "Período", 50));
         _changesGrid.Columns.Add(TextColumn(nameof(ChangeRow.ChangedFields), "Campos alterados", 120));
@@ -249,7 +249,7 @@ internal sealed class WorkbookMonitorForm : Form
             else
             {
                 _selectedSource = null;
-                _kpis.Text = "Nenhuma fonte Excel em modo administrativo foi encontrada. Use 'Novo monitoramento guiado'.";
+                _kpis.Text = "Nenhuma fonte Excel em modo matriz estruturada foi encontrada. Crie uma automação e configure uma fonte Excel nesse modo; o modelo RP-102 é apenas um exemplo opcional.";
             }
         });
 
@@ -286,7 +286,9 @@ internal sealed class WorkbookMonitorForm : Form
             return;
         }
 
-        _kpis.Text = $"Clientes: {_analysis.CompanyCount:N0}    |    Seções: {_analysis.SectionCount:N0}    |    Células monitoradas: {_analysis.StatusCellCount:N0}    |    Vazias: {_analysis.BlankStatusCount:N0}    |    Destacadas: {_analysis.HighlightedCellCount:N0}    |    Abas: {_analysis.Worksheets.Count:N0}";
+        var labels = _analysis.Labels;
+        ApplyConfiguredLabels(labels);
+        _kpis.Text = $"{labels.EntityPlural}: {_analysis.EntityCount:N0}    |    {labels.Category}s: {_analysis.SectionCount:N0}    |    Valores monitorados: {_analysis.StatusCellCount:N0}    |    Vazios: {_analysis.BlankStatusCount:N0}    |    Destacados: {_analysis.HighlightedCellCount:N0}    |    Abas: {_analysis.Worksheets.Count:N0}";
         _worksheetSelector.Items.Clear();
         foreach (var visual in _analysis.Visuals)
         {
@@ -304,8 +306,8 @@ internal sealed class WorkbookMonitorForm : Form
 
         _summaryGrid.DataSource = _analysis.StatusSummaries.Select(x => new SummaryRow
         {
-            Metric = MetricText(x.Metric),
-            Scope = ScopeText(x.Scope),
+            Metric = MetricText(x.Metric, labels),
+            Scope = ScopeText(x.Scope, labels),
             Group = x.Group,
             Worksheet = x.Worksheet,
             Period = x.Period,
@@ -355,7 +357,7 @@ internal sealed class WorkbookMonitorForm : Form
                 return;
             }
 
-            _changesGrid.DataSource = result.Changes.Select(MapChange).ToList();
+            _changesGrid.DataSource = result.Changes.Select(x => MapChange(x, _analysis.Labels)).ToList();
             _status.Text = $"Comparação concluída: {result.Changes.Count:N0} alteração(ões). Linha de base de {result.BaselineCreatedAt?.LocalDateTime:dd/MM/yyyy HH:mm:ss}.";
         });
     }
@@ -409,7 +411,7 @@ internal sealed class WorkbookMonitorForm : Form
             }
         }
         var discovered = _analysis?.Records
-            .SelectMany(x => new[] { x.Status, x.CurrentStatus })
+            .SelectMany(x => new[] { x.Value, x.CurrentValue, x.Status, x.CurrentStatus })
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase) ?? Enumerable.Empty<string>();
 
@@ -505,11 +507,11 @@ internal sealed class WorkbookMonitorForm : Form
             return;
         }
 
-        SetFilterItems(_recordTypeFilter, _analysis.Records.Select(x => RecordTypeText(x.RecordType)));
+        SetFilterItems(_recordTypeFilter, _analysis.Records.Select(x => RecordTypeText(x.RecordType, _analysis.Labels)));
         SetFilterItems(_sectionFilter, _analysis.Records.Select(x => x.Section));
-        SetFilterItems(_collaboratorFilter, _analysis.Records.Select(x => x.Collaborator));
+        SetFilterItems(_collaboratorFilter, _analysis.Records.Select(x => x.Owner));
         SetFilterItems(_periodFilter, _analysis.Records.Select(x => x.Period));
-        SetFilterItems(_statusFilter, _analysis.Records.Select(x => string.IsNullOrWhiteSpace(x.Status) ? "(vazio)" : x.Status));
+        SetFilterItems(_statusFilter, _analysis.Records.Select(x => string.IsNullOrWhiteSpace(x.Value) ? "(vazio)" : x.Value));
     }
 
     private void ApplyRecordFilters()
@@ -530,7 +532,7 @@ internal sealed class WorkbookMonitorForm : Form
         var query = _analysis.Records.AsEnumerable();
         if (!string.IsNullOrWhiteSpace(type))
         {
-            query = query.Where(x => string.Equals(RecordTypeText(x.RecordType), type, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(x => string.Equals(RecordTypeText(x.RecordType, _analysis.Labels), type, StringComparison.OrdinalIgnoreCase));
         }
         if (!string.IsNullOrWhiteSpace(section))
         {
@@ -538,7 +540,7 @@ internal sealed class WorkbookMonitorForm : Form
         }
         if (!string.IsNullOrWhiteSpace(collaborator))
         {
-            query = query.Where(x => string.Equals(x.Collaborator, collaborator, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(x => string.Equals(x.Owner, collaborator, StringComparison.OrdinalIgnoreCase));
         }
         if (!string.IsNullOrWhiteSpace(period))
         {
@@ -546,31 +548,31 @@ internal sealed class WorkbookMonitorForm : Form
         }
         if (!string.IsNullOrWhiteSpace(status))
         {
-            query = query.Where(x => string.Equals(string.IsNullOrWhiteSpace(x.Status) ? "(vazio)" : x.Status, status, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(x => string.Equals(string.IsNullOrWhiteSpace(x.Value) ? "(vazio)" : x.Value, status, StringComparison.OrdinalIgnoreCase));
         }
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(x => x.Company.Contains(search, StringComparison.OrdinalIgnoreCase) || x.Code.Contains(search, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(x => x.Entity.Contains(search, StringComparison.OrdinalIgnoreCase) || x.Code.Contains(search, StringComparison.OrdinalIgnoreCase));
         }
 
         _recordsGrid.DataSource = query
             .OrderBy(x => x.Worksheet, StringComparer.OrdinalIgnoreCase)
             .ThenBy(x => x.Section, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(x => x.Company, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.Entity, StringComparer.OrdinalIgnoreCase)
             .ThenBy(x => x.Period, StringComparer.OrdinalIgnoreCase)
             .Take(20000)
             .Select(x => new RecordRow
             {
-                Type = RecordTypeText(x.RecordType),
+                Type = RecordTypeText(x.RecordType, _analysis.Labels),
                 Worksheet = x.Worksheet,
                 Section = x.Section,
-                Company = x.Company,
+                Entity = x.Entity,
                 Code = x.Code,
-                Collaborator = x.Collaborator,
+                Owner = x.Owner,
                 Period = x.Period,
-                Status = string.IsNullOrWhiteSpace(x.Status) ? (x.RecordType == "Status" ? "(vazio)" : string.Empty) : x.Status,
-                Meaning = x.StatusMeaning,
-                CurrentStatus = x.CurrentStatus,
+                Value = string.IsNullOrWhiteSpace(x.Value) ? (x.RecordType == "Status" ? "(vazio)" : string.Empty) : x.Value,
+                Meaning = string.IsNullOrWhiteSpace(x.ValueMeaning) ? x.StatusMeaning : x.ValueMeaning,
+                CurrentValue = x.CurrentValue,
                 Count = x.Count,
                 CellAddress = x.CellAddress
             }).ToList();
@@ -716,36 +718,66 @@ internal sealed class WorkbookMonitorForm : Form
     private static string FilterValue(ComboBox combo) =>
         combo.SelectedIndex <= 0 ? string.Empty : combo.SelectedItem?.ToString() ?? string.Empty;
 
-    private static string RecordTypeText(string value) => value switch
+    private void ApplyConfiguredLabels(WorkbookMonitoringLabels labels)
     {
-        "Company" => "Empresa",
-        "Status" => "Situação",
+        SetColumnHeader(_recordsGrid, nameof(RecordRow.Section), labels.Category);
+        SetColumnHeader(_recordsGrid, nameof(RecordRow.Entity), labels.EntitySingular);
+        SetColumnHeader(_recordsGrid, nameof(RecordRow.Code), labels.Code);
+        SetColumnHeader(_recordsGrid, nameof(RecordRow.Owner), labels.Owner);
+        SetColumnHeader(_recordsGrid, nameof(RecordRow.Period), labels.Period);
+        SetColumnHeader(_recordsGrid, nameof(RecordRow.Value), labels.Value);
+        SetColumnHeader(_recordsGrid, nameof(RecordRow.CurrentValue), $"{labels.Value} atual");
+
+        SetColumnHeader(_changesGrid, nameof(ChangeRow.Section), labels.Category);
+        SetColumnHeader(_changesGrid, nameof(ChangeRow.Entity), labels.EntitySingular);
+        SetColumnHeader(_changesGrid, nameof(ChangeRow.Code), labels.Code);
+        SetColumnHeader(_changesGrid, nameof(ChangeRow.Period), labels.Period);
+
+        _companyFilter.PlaceholderText = $"{labels.EntitySingular} ou {labels.Code.ToLowerInvariant()}";
+    }
+
+    private static void SetColumnHeader(DataGridView grid, string propertyName, string title)
+    {
+        foreach (DataGridViewColumn column in grid.Columns)
+        {
+            if (string.Equals(column.DataPropertyName, propertyName, StringComparison.Ordinal))
+            {
+                column.HeaderText = title;
+                break;
+            }
+        }
+    }
+
+    private static string RecordTypeText(string value, WorkbookMonitoringLabels labels) => value switch
+    {
+        "Company" or "Entity" => labels.EntitySingular,
+        "Status" => labels.Value,
         "Aggregate" => "Quantidade",
         _ => value
     };
 
-    private static string MetricText(string value) => value switch
+    private static string MetricText(string value, WorkbookMonitoringLabels labels) => value switch
     {
-        "CompaniesByCurrentStatus" => "Clientes por situação atual",
-        "StatusCells" => "Células por situação e período",
+        "CompaniesByCurrentStatus" or "EntitiesByCurrentValue" => $"{labels.EntityPlural} por {labels.Value.ToLowerInvariant()} atual",
+        "StatusCells" or "ValuesByPeriod" => $"Valores por {labels.Value.ToLowerInvariant()} e {labels.Period.ToLowerInvariant()}",
         _ => value
     };
 
-    private static string ScopeText(string value) => value switch
+    private static string ScopeText(string value, WorkbookMonitoringLabels labels) => value switch
     {
         "Global" => "Geral",
-        "Section" => "Seção",
-        "Collaborator" => "Colaborador",
+        "Section" or "Category" => labels.Category,
+        "Collaborator" or "Owner" => labels.Owner,
         _ => value
     };
 
-    private static ChangeRow MapChange(WorkbookMonitoringChange x) => new()
+    private static ChangeRow MapChange(WorkbookMonitoringChange x, WorkbookMonitoringLabels labels) => new()
     {
         ChangeType = x.ChangeType,
-        RecordType = RecordTypeText(x.RecordType),
+        RecordType = RecordTypeText(x.RecordType, labels),
         Worksheet = x.Worksheet,
-        Section = x.Section,
-        Company = x.Company,
+        Section = string.IsNullOrWhiteSpace(x.Category) ? x.Section : x.Category,
+        Entity = string.IsNullOrWhiteSpace(x.Entity) ? x.Company : x.Entity,
         Code = x.Code,
         Period = x.Period,
         ChangedFields = x.ChangedFields,
@@ -832,13 +864,13 @@ internal sealed class WorkbookMonitorForm : Form
         public string Type { get; init; } = string.Empty;
         public string Worksheet { get; init; } = string.Empty;
         public string Section { get; init; } = string.Empty;
-        public string Company { get; init; } = string.Empty;
+        public string Entity { get; init; } = string.Empty;
         public string Code { get; init; } = string.Empty;
-        public string Collaborator { get; init; } = string.Empty;
+        public string Owner { get; init; } = string.Empty;
         public string Period { get; init; } = string.Empty;
-        public string Status { get; init; } = string.Empty;
+        public string Value { get; init; } = string.Empty;
         public string Meaning { get; init; } = string.Empty;
-        public string CurrentStatus { get; init; } = string.Empty;
+        public string CurrentValue { get; init; } = string.Empty;
         public int? Count { get; init; }
         public string CellAddress { get; init; } = string.Empty;
     }
@@ -849,7 +881,7 @@ internal sealed class WorkbookMonitorForm : Form
         public string RecordType { get; init; } = string.Empty;
         public string Worksheet { get; init; } = string.Empty;
         public string Section { get; init; } = string.Empty;
-        public string Company { get; init; } = string.Empty;
+        public string Entity { get; init; } = string.Empty;
         public string Code { get; init; } = string.Empty;
         public string Period { get; init; } = string.Empty;
         public string ChangedFields { get; init; } = string.Empty;

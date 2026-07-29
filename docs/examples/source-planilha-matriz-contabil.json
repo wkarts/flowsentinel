@@ -5,7 +5,9 @@
   "type": "Excel",
   "isPrimary": true,
   "enabled": true,
-  "keyFields": ["__recordKey"],
+  "keyFields": [
+    "__recordKey"
+  ],
   "configuration": {
     "filePath": "C:\\Dados\\controle-contabil.xlsx",
     "worksheet": null,
@@ -34,7 +36,33 @@
       "sectionsWithoutPeriods": "EMPRESAS MEI|SEM MOVIMENTO",
       "currentStatusExcludedPeriods": "BAL",
       "currentStatusMode": "CalendarPeriod",
-      "statusLabels": {}
-    }
+      "statusLabels": {},
+      "headerTextContains": "EMPRESAS",
+      "periodLabels": "JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ|BAL",
+      "sectionTitlePrefixes": "EMPRESAS ",
+      "sectionNamePrefixesToRemove": "EMPRESAS ",
+      "calendarPeriodNumbers": {
+        "JAN": 1,
+        "FEV": 2,
+        "MAR": 3,
+        "ABR": 4,
+        "MAI": 5,
+        "JUN": 6,
+        "JUL": 7,
+        "AGO": 8,
+        "SET": 9,
+        "OUT": 10,
+        "NOV": 11,
+        "DEZ": 12
+      },
+      "entitySingularName": "Empresa",
+      "entityPluralName": "Clientes",
+      "ownerName": "Colaborador",
+      "categoryName": "Regime",
+      "periodName": "Período",
+      "codeName": "Código",
+      "valueName": "Situação"
+    },
+    "profileName": "Modelo RP-102 - Conferência contábil"
   }
 }

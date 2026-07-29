@@ -12,21 +12,39 @@ public sealed class WorkbookMonitoringAnalysis
     public required IReadOnlyList<WorkbookStatusSummary> StatusSummaries { get; init; }
     public required IReadOnlyList<string> Warnings { get; init; }
     public required IReadOnlyList<WorkbookWorksheetVisual> Visuals { get; init; }
+    public WorkbookMonitoringLabels Labels { get; init; } = new();
     public DateTimeOffset AnalyzedAt { get; init; } = DateTimeOffset.Now;
 
     public WorkbookWorksheetVisual? Visual => Visuals.FirstOrDefault();
 
-    public int CompanyCount => Records
-        .Where(x => string.Equals(x.RecordType, "Company", StringComparison.OrdinalIgnoreCase))
-        .Select(x => x.CompanyKey)
+    public int EntityCount => Records
+        .Where(x => string.Equals(x.RecordType, "Company", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(x.RecordType, "Entity", StringComparison.OrdinalIgnoreCase))
+        .Select(x => string.IsNullOrWhiteSpace(x.EntityKey) ? x.CompanyKey : x.EntityKey)
         .Where(x => !string.IsNullOrWhiteSpace(x))
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .Count();
 
+    // Compatibilidade com automações criadas durante a prévia 0.3.0.
+    public int CompanyCount => EntityCount;
+
     public int StatusCellCount => Records.Count(x => string.Equals(x.RecordType, "Status", StringComparison.OrdinalIgnoreCase));
     public int HighlightedCellCount => Records.Count(x => x.IsHighlighted);
-    public int BlankStatusCount => Records.Count(x => string.Equals(x.RecordType, "Status", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(x.Status));
-    public int SectionCount => Records.Select(x => x.Section).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+    public int BlankStatusCount => Records.Count(x => string.Equals(x.RecordType, "Status", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(x.Value));
+    public int SectionCount => Records.Select(x => string.IsNullOrWhiteSpace(x.Category) ? x.Section : x.Category).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+}
+
+
+public sealed class WorkbookMonitoringLabels
+{
+    public string ProfileName { get; init; } = string.Empty;
+    public string EntitySingular { get; init; } = "Registro";
+    public string EntityPlural { get; init; } = "Registros";
+    public string Owner { get; init; } = "Responsável";
+    public string Category { get; init; } = "Grupo";
+    public string Period { get; init; } = "Período";
+    public string Code { get; init; } = "Código";
+    public string Value { get; init; } = "Valor";
 }
 
 public sealed class WorkbookMonitoringRecord
@@ -38,6 +56,15 @@ public sealed class WorkbookMonitoringRecord
     public string Year { get; init; } = string.Empty;
     public string Section { get; init; } = string.Empty;
     public string Regime { get; init; } = string.Empty;
+    public string EntityKey { get; init; } = string.Empty;
+    public string Entity { get; init; } = string.Empty;
+    public string Owner { get; init; } = string.Empty;
+    public string Category { get; init; } = string.Empty;
+    public string Value { get; init; } = string.Empty;
+    public string CurrentValue { get; init; } = string.Empty;
+    public string ValueMeaning { get; init; } = string.Empty;
+
+    // Aliases legados preservados para regras e templates já existentes.
     public string CompanyKey { get; init; } = string.Empty;
     public string Company { get; init; } = string.Empty;
     public string Code { get; init; } = string.Empty;
@@ -87,6 +114,9 @@ public sealed class WorkbookMonitoringChange
     public string RecordType { get; init; } = string.Empty;
     public string Worksheet { get; init; } = string.Empty;
     public string Section { get; init; } = string.Empty;
+    public string Entity { get; init; } = string.Empty;
+    public string Owner { get; init; } = string.Empty;
+    public string Category { get; init; } = string.Empty;
     public string Company { get; init; } = string.Empty;
     public string Code { get; init; } = string.Empty;
     public string Collaborator { get; init; } = string.Empty;

@@ -138,20 +138,23 @@ docs/examples/automation-clientes.json
 Consulte também `docs/visual-editor.md`.
 
 
-## Monitoramento administrativo de planilhas complexas
+## Monitoramento genérico de planilhas estruturadas
 
-A versão 0.3.0 adiciona um fluxo específico para controles com várias seções, empresas, períodos, situações e cores na mesma aba.
+A versão 0.3.0 adiciona o modo Excel `SectionedMatrix` para planilhas que possuem vários grupos, cabeçalhos repetidos, colunas de acompanhamento, cores ou listas especiais.
+
+O mecanismo é genérico. Cada linha pode representar cliente, equipamento, tarefa, contrato, documento ou qualquer outra entidade. Os nomes exibidos, as colunas, os períodos, os prefixos e as regras de reconhecimento são configurados visualmente.
 
 Na tela principal:
 
-- **Novo monitoramento guiado** cria uma única automação para toda a planilha;
-- **Painel de planilhas** exibe a estrutura original, indicadores, empresas, situações e mudanças;
-- **Legenda de situações** permite explicar códigos como `X`, `SM`, `M` e outros sem pressupor seu significado;
-- **Gravar linha de base** e **Comparar alterações** mostram exatamente o que mudou entre duas leituras.
+- **Nova automação avançada** permite configurar qualquer estrutura;
+- **Modelo RP-102 (opcional)** apenas preenche os parâmetros do arquivo contábil usado como caso de teste;
+- **Painel de planilhas** exibe a estrutura original, indicadores, entidades, valores e mudanças;
+- **Legenda de situações** associa os códigos ao significado definido pelo usuário;
+- **Gravar linha de base** e **Comparar alterações** mostram o que mudou entre leituras.
 
-O sistema gera registros por empresa, por célula de período e por indicador agregado. Portanto, não é necessário cadastrar uma automação por cliente.
+Uma única automação pode monitorar toda a planilha. Não é necessário cadastrar uma automação por empresa ou por registro.
 
-Consulte `docs/complex-workbook-monitoring.md` e o exemplo `docs/examples/source-planilha-matriz-contabil.json`.
+Consulte `docs/complex-workbook-monitoring.md`, o exemplo genérico `docs/examples/source-planilha-matriz-generica.json` e o modelo opcional `docs/examples/source-planilha-matriz-contabil.json`.
 
 ## Segredos protegidos
 

@@ -11,7 +11,7 @@ internal sealed class StatusDictionaryForm : Form
         IReadOnlyDictionary<string, string> current,
         IEnumerable<string> discoveredStatuses)
     {
-        Text = "Legenda administrativa de situações";
+        Text = "Legenda administrativa de valores";
         StartPosition = FormStartPosition.CenterParent;
         Size = new Size(720, 540);
         MinimumSize = new Size(620, 440);
@@ -119,7 +119,7 @@ internal sealed class StatusDictionaryForm : Form
         }
         catch (Exception exception)
         {
-            VisualEditorSupport.ShowError(this, exception, "Legenda de situações");
+            VisualEditorSupport.ShowError(this, exception, "Legenda de valores");
         }
     }
 }

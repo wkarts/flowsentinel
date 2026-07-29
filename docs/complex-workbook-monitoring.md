@@ -1,111 +1,212 @@
-# Monitoramento administrativo de planilhas complexas
+# Monitoramento genérico de planilhas estruturadas
 
-## Conceito operacional
+## O que é genérico e o que é apenas modelo
 
-Uma planilha inteira deve ser cadastrada como uma fonte de monitoramento. Não é necessário criar uma automação para cada empresa ou cliente.
+O modo `SectionedMatrix` é um mecanismo genérico. Ele não depende de contabilidade, empresas, meses, regimes tributários ou da planilha RP-102.
 
-No modo **Matriz com múltiplas seções e períodos**, o FlowSentinel normaliza a planilha em três níveis:
+A planilha RP-102 foi utilizada como um caso real de teste porque possui uma estrutura difícil: vários blocos, cabeçalhos repetidos, colunas de acompanhamento, listas especiais, cores e anos diferentes. A configuração RP-102 permanece disponível somente como **modelo opcional** para preencher rapidamente os parâmetros dessa planilha.
+
+```text
+Motor genérico SectionedMatrix
+├── configuração visual livre
+├── qualquer entidade por linha
+├── qualquer grupo ou categoria
+├── qualquer responsável
+├── qualquer conjunto de períodos/etapas
+└── modelos opcionais
+    └── RP-102 (exemplo contábil)
+```
+
+Nenhum termo do modelo RP-102 é obrigatório no parser. Cabeçalho, rótulos, prefixos, colunas, períodos, grupos especiais, campos ignorados e nomes exibidos são parametrizáveis.
+
+## Quando usar cada modo
+
+### Tabela simples
+
+Use quando existe uma única linha de cabeçalho e cada linha representa um registro convencional.
+
+Exemplos:
+
+- cadastro de clientes;
+- pedidos;
+- contas a receber;
+- exportação de banco de dados;
+- inventário com uma linha por item.
+
+### Matriz estruturada
+
+Use quando a planilha possui um ou mais destes elementos:
+
+- blocos ou grupos repetidos;
+- cabeçalhos no meio da aba;
+- várias colunas de situação, etapa ou período;
+- células vazias que também têm significado;
+- cores ou destaques;
+- listas especiais sem todas as colunas;
+- necessidade de totais por valor, grupo ou responsável.
+
+## Unidade de monitoramento
+
+Uma única fonte pode monitorar toda a planilha. Não é necessário cadastrar uma automação para cada empresa, equipamento, tarefa ou documento.
+
+O sistema normaliza a planilha em três tipos de registro:
 
 ```text
 Planilha / aba
-├── Empresa
-├── Situação da empresa em cada período
+├── Entidade consolidada
+│   ├── cliente
+│   ├── equipamento
+│   ├── contrato
+│   ├── tarefa
+│   └── qualquer outro registro da linha
+├── Valor por coluna de acompanhamento
 └── Indicadores agregados
 ```
 
-Cada linha reconhecida gera um registro de empresa. Cada célula de período gera um registro de situação independente. O sistema também gera indicadores de quantidade por situação, seção, colaborador e período.
+Os nomes exibidos são definidos na fonte:
 
-## Assistente guiado
+- nome singular e plural da entidade;
+- nome do responsável;
+- nome do grupo/categoria;
+- nome do período/etapa;
+- nome do código/chave;
+- nome do valor monitorado.
 
-Na tela principal, utilize **Novo monitoramento guiado**.
+Internamente, aliases legados como `Company`, `CompanyKey`, `Collaborator` e `Status` são preservados apenas para manter compatibilidade com automações criadas durante as versões anteriores. Os aliases genéricos recomendados são:
 
-O assistente permite:
+```text
+Entity
+EntityKey
+Owner
+Category
+Period
+Code
+Value
+CurrentValue
+```
 
-1. selecionar o arquivo Excel;
-2. escolher a aba mais recente, uma aba específica ou todas as abas anuais;
-3. analisar a estrutura antes de salvar;
-4. escolher quais mudanças devem gerar notificações;
-5. vincular vários canais e destinatários;
-6. criar uma única automação para toda a carteira de empresas.
+## Configuração visual genérica
 
-O perfil contábil padrão considera:
+Em **Nova automação avançada**, adicione uma fonte Excel e selecione:
 
-| Coluna | Conteúdo |
-|---|---|
-| A | Número sequencial |
-| B | Seção ou nome da empresa |
-| C | Código da empresa |
-| D | Colaborador responsável |
-| E até T | Períodos e situações |
+```text
+Modo de leitura: Matriz estruturada com grupos e colunas
+```
 
-Essas colunas permanecem configuráveis no editor de fonte.
+A tela permite configurar:
+
+1. arquivo e seleção da aba;
+2. marcador exato ou texto contido no cabeçalho;
+3. rótulos reservados das colunas;
+4. prefixos que identificam títulos de grupos;
+5. prefixos removidos do nome exibido do grupo;
+6. coluna de número;
+7. coluna do grupo/categoria;
+8. coluna da entidade;
+9. coluna da chave/código;
+10. coluna do responsável;
+11. primeira e última coluna monitorada;
+12. grupos independentes;
+13. grupos sem colunas de acompanhamento;
+14. cálculo do valor atual;
+15. mapa de calendário, quando aplicável;
+16. períodos que não participam do valor atual;
+17. nomes administrativos exibidos no painel;
+18. legenda dos valores;
+19. geração de totais e monitoramento de formatação.
+
+## Modelo opcional RP-102
+
+O botão **Modelo RP-102 (opcional)** não altera o motor e não cria uma regra global fixa. Ele apenas preenche os parâmetros conhecidos do arquivo de referência, como:
+
+- colunas A até T;
+- cabeçalho identificado por `Nº` e `EMPRESAS`;
+- períodos JAN a DEZ;
+- colunas auxiliares `BAL`;
+- grupos especiais usados naquele arquivo.
+
+Após aplicar o modelo, todos os parâmetros continuam editáveis.
+
+O botão da tela principal também é apresentado como **Modelo RP-102 (opcional)** para deixar claro que ele não é o único fluxo de monitoramento.
+
+## Exemplo genérico
+
+Uma planilha de frota pode ser configurada assim:
+
+```text
+Entidade: Equipamento
+Grupo: Unidade
+Responsável: Mecânico
+Períodos/etapas: INSPEÇÃO | MANUTENÇÃO | DOCUMENTAÇÃO
+Valor: OK | PENDENTE | BLOQUEADO
+```
+
+Uma planilha de projetos poderia usar:
+
+```text
+Entidade: Projeto
+Grupo: Cliente
+Responsável: Gestor
+Períodos/etapas: ANÁLISE | DESENVOLVIMENTO | HOMOLOGAÇÃO | ENTREGA
+Valor: NÃO INICIADO | EM ANDAMENTO | CONCLUÍDO
+```
+
+O mesmo parser e o mesmo painel atendem aos dois casos.
 
 ## Painel administrativo
 
-O botão **Painel de planilhas** abre uma área independente das notificações. O painel apresenta:
+O botão **Painel de planilhas** abre uma visão independente dos disparos. O painel apresenta:
 
-- a planilha na mesma disposição visual da aba original;
-- valores, posição das células, larguras de colunas, alturas de linhas, cores e destaques;
-- quantidade de clientes;
-- quantidade de seções;
-- quantidade de células de situação;
-- clientes por situação atual;
-- células por situação e período;
-- filtros por empresa, código, seção, colaborador, período e situação;
-- comparação do estado atual com uma linha de base;
-- lista detalhada do que foi incluído, removido ou alterado;
-- avisos de chaves duplicadas ou blocos não reconhecidos.
+- planilha na disposição visual da aba original;
+- valores, posições, dimensões, cores e destaques;
+- quantidade de entidades;
+- quantidade de grupos;
+- quantidade de valores monitorados;
+- totais por valor, período, grupo e responsável;
+- filtros administrativos;
+- linha de base;
+- comparação de inclusões, remoções e alterações;
+- avisos de estrutura e chaves duplicadas.
 
-## Situação atual do cliente
+Os títulos do painel usam os nomes configurados na fonte. Portanto, ele pode mostrar “Clientes”, “Equipamentos”, “Tarefas”, “Contratos” ou qualquer outra entidade sem alteração de código.
 
-Além de monitorar cada célula mensal, o sistema calcula a **situação atual** de cada cliente. Por padrão, em abas do ano corrente são considerados apenas os períodos até o mês atual; em anos anteriores, é utilizado o último período preenchido. A fonte também pode ser configurada para usar sempre o último período preenchido.
+## Valor atual
 
-Isso permite responder perguntas como:
+O valor consolidado da entidade pode ser calculado por:
 
-- quantos clientes estão atualmente com situação X;
-- quantos clientes estão atualmente com situação SM;
-- quais clientes mudaram de situação atual;
-- qual foi o último período preenchido de cada cliente.
+- **último valor preenchido**; ou
+- **calendário configurado**, usando um mapa `RÓTULO=NÚMERO`.
 
-## Legenda de situações
+O calendário não é limitado a nomes de meses. Os rótulos são definidos pelo usuário. Valores auxiliares também podem ser excluídos desse cálculo.
 
-O FlowSentinel não presume o significado de códigos como `X`, `SM`, `M`, `J` ou outros valores da planilha.
+## Legenda de valores
 
-No painel, utilize **Legenda de situações** para associar cada código à descrição adotada pela empresa. A legenda fica armazenada na configuração da fonte e aparece nos registros, totais e notificações.
-
-Exemplo meramente ilustrativo:
+O FlowSentinel não presume o significado de códigos. A legenda é cadastrada pelo usuário e pode representar qualquer domínio.
 
 ```text
-X  → descrição definida pelo usuário
-SM → descrição definida pelo usuário
-M  → descrição definida pelo usuário
+OK        → concluído
+PENDENTE  → requer ação
+BLOQ      → bloqueado
 ```
 
 ## Linha de base e mudanças
 
-Após a primeira análise, clique em **Gravar linha de base**. Nas análises seguintes, **Comparar alterações** mostra:
+A linha de base permite identificar:
 
-- empresa adicionada ou removida;
-- mudança de colaborador;
-- mudança de situação mensal;
-- mudança da situação atual;
-- alteração de cor ou destaque;
-- alteração de quantidades agregadas.
+- entidade adicionada ou removida;
+- troca de responsável;
+- mudança de valor em uma coluna;
+- mudança do valor atual;
+- mudança de cor ou destaque;
+- alteração de quantidade agregada.
 
-A linha de base é gravada no diretório de dados local e não altera a planilha original.
-
-## Notificações
-
-Uma única automação pode gerar ações independentes para:
-
-- mudança de qualquer célula de situação;
-- mudança da situação atual do cliente;
-- mudança do colaborador responsável;
-- mudança da quantidade de clientes por situação;
-- mudança da quantidade de células por situação e período.
-
-Cada ação pode utilizar vários canais e vários destinatários simultaneamente.
+A linha de base fica no diretório local de dados e não modifica a planilha original.
 
 ## Compatibilidade
 
-O modo de tabela simples continua disponível para planilhas convencionais com um único cabeçalho. O modo administrativo é adicional e não altera automações existentes.
+- o modo Tabela simples continua disponível;
+- CSV, TXT e bancos de dados continuam independentes;
+- configurações RP-102 existentes continuam válidas;
+- aliases legados continuam disponíveis;
+- nenhuma automação por entidade é exigida;
+- nenhuma regra contábil foi incorporada ao motor genérico.

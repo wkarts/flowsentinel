@@ -29,26 +29,37 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 
 ### Adicionado
 
-- Assistente guiado para criar um único monitoramento administrativo para toda uma planilha complexa.
-- Análise estrutural antes da criação, com quantidade de clientes, seções, células monitoradas, abas e avisos.
-- Modo Excel `SectionedMatrix` para reconhecer vários blocos, cabeçalhos repetidos, empresas, colaboradores, períodos e balanços na mesma aba.
+- Modelo guiado RP-102 opcional e editor visual genérico para criar um único monitoramento de toda uma planilha estruturada.
+- Análise estrutural antes da criação, com quantidade de entidades, grupos, valores monitorados, abas e avisos.
+- Modo Excel `SectionedMatrix` configurável para reconhecer vários blocos, cabeçalhos repetidos, entidades, responsáveis e colunas de acompanhamento na mesma aba.
 - Seleção automática da aba anual mais recente, seleção fixa ou leitura de todas as abas compatíveis.
-- Registros normalizados por empresa e por célula de situação, sem exigir uma automação por cliente.
-- Cálculo configurável da situação atual do cliente, respeitando por padrão o mês corrente da aba anual e ignorando colunas auxiliares como `BAL`.
-- Indicadores de clientes por situação atual e células por situação/período.
-- Agregações gerais, por seção/regime e por colaborador.
+- Registros normalizados por entidade e por célula de valor, sem exigir uma automação por item.
+- Cálculo configurável do valor atual por último preenchido ou calendário definido pelo usuário, com exclusões opcionais.
+- Indicadores de entidades por valor atual e células por valor/período.
+- Agregações gerais, por grupo/categoria e por responsável.
 - Painel administrativo com visualização semelhante à planilha original, preservando posição, conteúdo, larguras de colunas, alturas de linhas, cores e destaques.
-- Filtros por tipo, empresa, código, seção, colaborador, período e situação.
+- Filtros por tipo, entidade, código, grupo, responsável, período e valor.
 - Linha de base local e comparação detalhada de inclusões, remoções e alterações.
 - Legenda administrativa configurável para códigos de situação.
-- Notificações específicas para mudança de situação mensal, situação atual, colaborador, quantidades, cores e destaques.
+- Notificações específicas para mudança de valor, valor atual, responsável, quantidades, cores e destaques.
 - Suporte a variáveis `{{previous.Campo}}` nos templates de mensagens.
-- Reconhecimento de listas especiais sem código, colaborador ou períodos, como blocos de MEI e empresas sem movimento.
-- Testes para planilhas com blocos, períodos repetidos, listas sem períodos e totais administrativos.
+- Reconhecimento configurável de listas especiais sem código, responsável ou períodos.
+- Testes para matrizes contábeis opcionais e para estruturas genéricas de outros domínios.
+
+### Corrigido durante a validação do PR
+
+- Corrigido o teste de detecção de células destacadas, tornando a leitura de preenchimento compatível com cores de fundo e padrão.
+- Eliminados os avisos de nulabilidade no parser, no assistente, nas fontes do sistema e nos testes.
+- Removidos do núcleo do parser os rótulos contábeis fixos, meses, `BAL`, `EMPRESAS`, `SIMPLES` e `SEM MOVIMENTO`.
+- Corrigida a detecção de cabeçalho quando o marcador está vazio, evitando classificar linhas comuns como cabeçalho.
+- Adicionados aliases genéricos `Entity`, `EntityKey`, `Owner`, `Category`, `Value` e `CurrentValue`, preservando aliases legados.
+- Adicionados nomes administrativos configuráveis para entidade, responsável, grupo, período, código e valor.
+- Tornado explícito na interface que RP-102 é apenas um modelo opcional.
+- Adicionado teste de matriz genérica de equipamentos sem vocabulário contábil.
 
 ### Alterado
 
-- A tela principal passou a destacar o monitoramento guiado e o painel de planilhas como fluxos principais.
+- A tela principal passou a destacar o painel de planilhas; o atalho RP-102 é identificado como modelo opcional.
 - O leitor Excel de tabela simples foi preservado e passou a coexistir com o modo administrativo.
 - A versão do produto, instalador e pipeline foi atualizada para `0.3.0`.
 
