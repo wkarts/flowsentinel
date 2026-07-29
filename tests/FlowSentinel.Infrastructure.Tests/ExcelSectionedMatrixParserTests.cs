@@ -41,6 +41,7 @@ public sealed class ExcelSectionedMatrixParserTests
                 LastPeriodColumn = 9,
                 CurrentStatusExcludedPeriods = "BAL",
                 CurrentStatusMode = "LastFilled",
+                GenerateAggregateRecords = true,
                 StatusLabels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {
                     ["X"] = "Conferido",
@@ -160,6 +161,7 @@ public sealed class ExcelSectionedMatrixParserTests
                 FirstPeriodColumn = 5,
                 LastPeriodColumn = 6,
                 CurrentStatusMode = "LastFilled",
+                GenerateAggregateRecords = true,
                 EntitySingularName = "Equipamento",
                 EntityPluralName = "Equipamentos"
             }
@@ -224,6 +226,7 @@ public sealed class ExcelSectionedMatrixParserTests
 
         var entity = records.Single(x => x.Fields.GetValueOrDefault("__recordType") == "Entity");
         Assert.Equal("Monitorar", entity.Fields["Entity"]);
+        Assert.DoesNotContain(records, x => x.Fields.GetValueOrDefault("__recordType") == "Aggregate");
     }
 
     [Fact]
@@ -248,6 +251,7 @@ public sealed class ExcelSectionedMatrixParserTests
                 LastPeriodColumn = 5,
                 IncludeBlankStatuses = true,
                 IncludeBlankValuesInAggregates = false,
+                GenerateAggregateRecords = true,
                 AggregateBySection = false,
                 AggregateByCollaborator = false
             }

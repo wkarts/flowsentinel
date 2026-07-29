@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -197,11 +198,16 @@ public sealed class ActionDefinition
     public string Name { get; set; } = string.Empty;
     public bool Enabled { get; set; } = true;
     public ActionTrigger Trigger { get; set; } = ActionTrigger.OnOpen;
+    public bool EvaluateWhileActiveOnOpen { get; set; }
     public int DelaySeconds { get; set; }
     public RepeatPolicyDefinition Repeat { get; set; } = new();
+    public ActionScheduleDefinition Schedule { get; set; } = new();
     public ChannelExecutionStrategy ChannelStrategy { get; set; } = ChannelExecutionStrategy.All;
     public ActionSuccessPolicy SuccessPolicy { get; set; } = ActionSuccessPolicy.AllDeliveries;
     public RuleSetDefinition? Conditions { get; set; }
+    public RuleSetDefinition? PersistenceConditions { get; set; }
+    public RuleSetDefinition? CompletionConditions { get; set; }
+    public bool CancelPendingWhenConditionFails { get; set; }
     public string SubjectTemplate { get; set; } = "{{automation.name}}";
     public string MessageTemplate { get; set; } = string.Empty;
     public List<ActionChannelDefinition> Channels { get; set; } = [];
@@ -259,7 +265,11 @@ public sealed class ActionDefinition
             throw new InvalidOperationException($"O intervalo de repetição da ação '{Name}' deve ser maior que zero.");
         }
 
+        Schedule ??= new ActionScheduleDefinition();
+        Schedule.Validate(Name);
         Conditions?.Validate();
+        PersistenceConditions?.Validate();
+        CompletionConditions?.Validate();
     }
 }
 
@@ -268,6 +278,7 @@ public sealed class RepeatPolicyDefinition
     public bool Enabled { get; set; }
     public int IntervalSeconds { get; set; } = 3600;
     public int MaxExecutions { get; set; } = 1;
+    public bool ResetOnConditionReentry { get; set; }
 
     public bool AllowsExecution(int previousExecutions)
     {
@@ -277,6 +288,56 @@ public sealed class RepeatPolicyDefinition
         }
 
         return Enabled && (MaxExecutions <= 0 || previousExecutions < MaxExecutions);
+    }
+}
+
+public sealed class ActionScheduleDefinition
+{
+    public bool Enabled { get; set; }
+    public string StartTime { get; set; } = "00:00";
+    public string EndTime { get; set; } = "23:59";
+    public List<DayOfWeek> DaysOfWeek { get; set; } = [];
+
+    public void Validate(string actionName)
+    {
+        DaysOfWeek ??= [];
+        if (!Enabled)
+        {
+            return;
+        }
+
+        if (!TimeOnly.TryParseExact(StartTime, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+        {
+            throw new InvalidOperationException($"A ação '{actionName}' possui horário inicial inválido. Use HH:mm.");
+        }
+        if (!TimeOnly.TryParseExact(EndTime, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+        {
+            throw new InvalidOperationException($"A ação '{actionName}' possui horário final inválido. Use HH:mm.");
+        }
+    }
+
+    public bool IsAllowed(DateTimeOffset now)
+    {
+        if (!Enabled)
+        {
+            return true;
+        }
+
+        if (DaysOfWeek.Count > 0 && !DaysOfWeek.Contains(now.DayOfWeek))
+        {
+            return false;
+        }
+
+        if (!TimeOnly.TryParseExact(StartTime, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) ||
+            !TimeOnly.TryParseExact(EndTime, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
+        {
+            return false;
+        }
+
+        var current = TimeOnly.FromDateTime(now.LocalDateTime);
+        return start <= end
+            ? current >= start && current <= end
+            : current >= start || current <= end;
     }
 }
 

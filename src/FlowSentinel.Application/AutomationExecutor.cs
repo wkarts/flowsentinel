@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using FlowSentinel.Domain;
 using Microsoft.Extensions.Logging;
 
@@ -45,6 +44,10 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
             return;
         }
 
+        var startedAt = DateTimeOffset.Now;
+        var recordCount = 0;
+        var changedRecordCount = 0;
+
         try
         {
             var automation = await _store.GetAutomationDefinitionAsync(automationId, cancellationToken);
@@ -59,13 +62,17 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
                 .ToDictionary(x => x.Id);
             var sourceResults = await ReadSourcesAsync(automation, cancellationToken);
             var mergedRecords = MergeRecords(automation, sourceResults);
+            recordCount = mergedRecords.Count;
             var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var record in mergedRecords)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 seenKeys.Add(record.Key);
-                await EvaluateRecordAsync(automation, record, channelConfigurations, now, cancellationToken);
+                if (await EvaluateRecordAsync(automation, record, channelConfigurations, now, cancellationToken))
+                {
+                    changedRecordCount++;
+                }
             }
 
             await ResolveMissingRecordsAsync(automation, seenKeys, now, cancellationToken);
@@ -74,6 +81,8 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
                 now.AddSeconds(automation.IntervalSeconds),
                 null,
                 cancellationToken);
+            await AddExecutionHistorySafelyAsync(
+                automation.Id, startedAt, DateTimeOffset.Now, true, recordCount, changedRecordCount, null, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -85,6 +94,8 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
                 DateTimeOffset.Now.AddSeconds(Math.Max(30, interval)),
                 exception.Message,
                 cancellationToken);
+            await AddExecutionHistorySafelyAsync(
+                automationId, startedAt, DateTimeOffset.Now, false, recordCount, changedRecordCount, exception.Message, cancellationToken);
         }
         finally
         {
@@ -163,7 +174,7 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
         }
     }
 
-    private async Task EvaluateRecordAsync(
+    private async Task<bool> EvaluateRecordAsync(
         AutomationDefinition automation,
         MergedRecord record,
         IReadOnlyDictionary<Guid, ChannelConfiguration> channelConfigurations,
@@ -185,7 +196,7 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
         {
             if (!_ruleEngine.Evaluate(automation.EntryRules, context))
             {
-                return;
+                return false;
             }
 
             occurrence = new OccurrenceStoreItem
@@ -201,9 +212,25 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
             };
             await _store.CreateOccurrenceAsync(occurrence, cancellationToken);
             await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.OnOpen, now, cancellationToken);
+            await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.WhileActive, now, cancellationToken, openingOccurrence: true);
             occurrence.Status = OccurrenceStatus.Active;
             await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
-            return;
+            return false;
+        }
+
+        var recordChanged = !string.Equals(occurrence.Fingerprint, record.Fingerprint, StringComparison.Ordinal);
+        if (recordChanged)
+        {
+            await AddRecordChangeHistorySafelyAsync(new RecordChangeHistoryItem
+            {
+                AutomationId = automation.Id,
+                OccurrenceId = occurrence.Id,
+                RecordKey = record.Key,
+                DetectedAt = now,
+                PreviousSnapshot = previous.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
+                CurrentSnapshot = record.Fields.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase),
+                ChangedFields = GetChangedFields(previous, record.Fields)
+            }, cancellationToken);
         }
 
         occurrence.LastEvaluatedAt = now;
@@ -217,14 +244,14 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
             await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
             await _store.CancelPendingDeliveriesAsync(occurrence.Id, cancellationToken);
             await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.OnResolved, now, cancellationToken);
-            return;
+            return recordChanged;
         }
 
         if (_ruleEngine.Evaluate(automation.SuspensionRules, context, defaultValue: false))
         {
             occurrence.Status = OccurrenceStatus.Suspended;
             await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
-            return;
+            return recordChanged;
         }
 
         if (automation.ResolveWhenPersistenceFails &&
@@ -236,12 +263,13 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
             await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
             await _store.CancelPendingDeliveriesAsync(occurrence.Id, cancellationToken);
             await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.OnResolved, now, cancellationToken);
-            return;
+            return recordChanged;
         }
 
         occurrence.Status = OccurrenceStatus.Active;
         await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
         await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.WhileActive, now, cancellationToken);
+        return recordChanged;
     }
 
     private async Task ScheduleActionsAsync(
@@ -251,16 +279,42 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
         IReadOnlyDictionary<Guid, ChannelConfiguration> channelConfigurations,
         ActionTrigger trigger,
         DateTimeOffset now,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool openingOccurrence = false)
     {
         foreach (var action in automation.Actions.Where(x => x.Enabled && x.Trigger == trigger))
         {
-            if (!_ruleEngine.Evaluate(action.Conditions, context))
+            if (openingOccurrence && trigger == ActionTrigger.WhileActive && !action.EvaluateWhileActiveOnOpen)
+            {
+                continue;
+            }
+            ActionScheduleState state;
+            if (trigger == ActionTrigger.WhileActive)
+            {
+                state = await EvaluateWhileActiveStateAsync(action, occurrence, context, now, cancellationToken);
+                if (!state.ConditionActive)
+                {
+                    if (action.CancelPendingWhenConditionFails)
+                    {
+                        await _store.CancelPendingDeliveriesAsync(occurrence.Id, action.Id, cancellationToken);
+                    }
+                    continue;
+                }
+            }
+            else
+            {
+                if (!_ruleEngine.Evaluate(action.Conditions, context))
+                {
+                    continue;
+                }
+                state = await _store.GetActionScheduleStateAsync(occurrence.Id, action.Id, cancellationToken);
+            }
+
+            if (!(action.Schedule ?? new ActionScheduleDefinition()).IsAllowed(now))
             {
                 continue;
             }
 
-            var state = await _store.GetActionScheduleStateAsync(occurrence.Id, action.Id, cancellationToken);
             if (!action.Repeat.AllowsExecution(state.ExecutionCount))
             {
                 continue;
@@ -275,6 +329,7 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
                 }
             }
 
+            var executionNumber = state.ExecutionCount + 1;
             var subject = _templateRenderer.Render(action.SubjectTemplate, context);
             var message = _templateRenderer.Render(action.MessageTemplate, context);
             var deliveries = new List<DeliveryStoreItem>();
@@ -305,7 +360,8 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
                         action.Id,
                         channel.ChannelConfigurationId,
                         recipient.Address,
-                        state.ExecutionCount + 1);
+                        state.EpisodeNumber,
+                        executionNumber);
 
                     deliveries.Add(new DeliveryStoreItem
                     {
@@ -319,7 +375,7 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
                         Subject = subject,
                         Message = message,
                         IdempotencyKey = key,
-                        ExecutionNumber = state.ExecutionCount + 1,
+                        ExecutionNumber = executionNumber,
                         CreatedAt = now,
                         Status = DeliveryStatus.Pending,
                         AttemptCount = 0,
@@ -329,8 +385,116 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
                 }
             }
 
+            if (deliveries.Count == 0)
+            {
+                continue;
+            }
+
             await _store.AddDeliveriesAsync(deliveries, cancellationToken);
+            await _store.MarkActionScheduledAsync(
+                occurrence.Id,
+                action.Id,
+                state.EpisodeNumber,
+                executionNumber,
+                now,
+                cancellationToken);
         }
+    }
+
+    private async Task<ActionScheduleState> EvaluateWhileActiveStateAsync(
+        ActionDefinition action,
+        OccurrenceStoreItem occurrence,
+        EvaluationContext context,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var current = await _store.GetActionScheduleStateAsync(occurrence.Id, action.Id, cancellationToken);
+        bool conditionActive;
+        if (!current.ConditionActive)
+        {
+            conditionActive = _ruleEngine.Evaluate(action.Conditions, context);
+        }
+        else if (_ruleEngine.Evaluate(action.CompletionConditions, context, defaultValue: false))
+        {
+            conditionActive = false;
+        }
+        else if (action.PersistenceConditions is not null)
+        {
+            conditionActive = _ruleEngine.Evaluate(action.PersistenceConditions, context);
+        }
+        else
+        {
+            conditionActive = _ruleEngine.Evaluate(action.Conditions, context);
+        }
+
+        return await _store.UpdateActionConditionStateAsync(
+            occurrence.Id,
+            action.Id,
+            conditionActive,
+            action.Repeat.ResetOnConditionReentry,
+            now,
+            cancellationToken);
+    }
+
+    private async Task AddExecutionHistorySafelyAsync(
+        Guid automationId,
+        DateTimeOffset startedAt,
+        DateTimeOffset completedAt,
+        bool success,
+        int recordCount,
+        int changedRecordCount,
+        string? error,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _store.AddAutomationExecutionHistoryAsync(new AutomationExecutionHistoryItem
+            {
+                AutomationId = automationId,
+                StartedAt = startedAt,
+                CompletedAt = completedAt,
+                Success = success,
+                RecordCount = recordCount,
+                ChangedRecordCount = changedRecordCount,
+                Error = error
+            }, cancellationToken);
+        }
+        catch (Exception historyException)
+        {
+            _logger.LogWarning(historyException,
+                "Não foi possível registrar o histórico da execução da automação {AutomationId}.", automationId);
+        }
+    }
+
+    private async Task AddRecordChangeHistorySafelyAsync(
+        RecordChangeHistoryItem history,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _store.AddRecordChangeHistoryAsync(history, cancellationToken);
+        }
+        catch (Exception historyException)
+        {
+            _logger.LogWarning(historyException,
+                "Não foi possível registrar o histórico da mudança do registro {RecordKey} da automação {AutomationId}.",
+                history.RecordKey,
+                history.AutomationId);
+        }
+    }
+
+    private static List<string> GetChangedFields(
+        IReadOnlyDictionary<string, string?> previous,
+        IReadOnlyDictionary<string, string?> current)
+    {
+        return previous.Keys
+            .Union(current.Keys, StringComparer.OrdinalIgnoreCase)
+            .Where(field => !string.Equals(
+                previous.GetValueOrDefault(field),
+                current.GetValueOrDefault(field),
+                StringComparison.Ordinal))
+            .OrderBy(field => field, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private async Task ResolveMissingRecordsAsync(
@@ -367,9 +531,13 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
         Guid actionId,
         Guid channelId,
         string recipient,
+        int episodeNumber,
         int execution)
     {
-        var source = $"{occurrenceId:N}|{actionId:N}|{channelId:N}|{recipient.Trim().ToLowerInvariant()}|{execution}";
+        var normalizedRecipient = recipient.Trim().ToLowerInvariant();
+        var source = episodeNumber > 0
+            ? $"{occurrenceId:N}|{actionId:N}|{channelId:N}|{normalizedRecipient}|episode:{episodeNumber}|{execution}"
+            : $"{occurrenceId:N}|{actionId:N}|{channelId:N}|{normalizedRecipient}|{execution}";
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
     }
 

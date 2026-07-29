@@ -30,7 +30,9 @@ public enum RuleSetType
     Completion,
     Suspension,
     Reopening,
-    ActionCondition
+    ActionCondition,
+    ActionPersistence,
+    ActionCompletion
 }
 
 public enum RuleOperator

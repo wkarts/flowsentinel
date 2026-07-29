@@ -67,6 +67,8 @@ public interface IFlowStore
     Task SaveAutomationAsync(AutomationDefinition definition, CancellationToken cancellationToken);
     Task DeleteAutomationAsync(Guid automationId, CancellationToken cancellationToken);
     Task MarkAutomationExecutionAsync(Guid automationId, DateTimeOffset nextRunAt, string? error, CancellationToken cancellationToken);
+    Task AddAutomationExecutionHistoryAsync(AutomationExecutionHistoryItem history, CancellationToken cancellationToken);
+    Task AddRecordChangeHistoryAsync(RecordChangeHistoryItem history, CancellationToken cancellationToken);
 
     Task<OccurrenceStoreItem?> GetOpenOccurrenceAsync(Guid automationId, string recordKey, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<OccurrenceStoreItem>> GetOpenOccurrencesAsync(Guid automationId, CancellationToken cancellationToken);
@@ -74,8 +76,23 @@ public interface IFlowStore
     Task UpdateOccurrenceAsync(OccurrenceStoreItem occurrence, CancellationToken cancellationToken);
 
     Task<ActionScheduleState> GetActionScheduleStateAsync(Guid occurrenceId, Guid actionId, CancellationToken cancellationToken);
+    Task<ActionScheduleState> UpdateActionConditionStateAsync(
+        Guid occurrenceId,
+        Guid actionId,
+        bool conditionActive,
+        bool resetOnReentry,
+        DateTimeOffset evaluatedAt,
+        CancellationToken cancellationToken);
+    Task MarkActionScheduledAsync(
+        Guid occurrenceId,
+        Guid actionId,
+        int episodeNumber,
+        int executionNumber,
+        DateTimeOffset scheduledAt,
+        CancellationToken cancellationToken);
     Task AddDeliveriesAsync(IReadOnlyCollection<DeliveryStoreItem> deliveries, CancellationToken cancellationToken);
     Task CancelPendingDeliveriesAsync(Guid occurrenceId, CancellationToken cancellationToken);
+    Task CancelPendingDeliveriesAsync(Guid occurrenceId, Guid actionId, CancellationToken cancellationToken);
     Task<IReadOnlyCollection<DeliveryStoreItem>> ClaimDueDeliveriesAsync(DateTimeOffset now, int take, CancellationToken cancellationToken);
     Task CompleteDeliveryAsync(Guid deliveryId, DeliveryResult result, DateTimeOffset? nextAttemptAt, CancellationToken cancellationToken);
 

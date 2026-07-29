@@ -53,6 +53,32 @@ public sealed class ActionScheduleState
 {
     public int ExecutionCount { get; init; }
     public DateTimeOffset? LastScheduledAt { get; init; }
+    public bool ConditionActive { get; init; }
+    public int EpisodeNumber { get; init; }
+}
+
+public sealed class AutomationExecutionHistoryItem
+{
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid AutomationId { get; init; }
+    public DateTimeOffset StartedAt { get; init; }
+    public DateTimeOffset CompletedAt { get; init; }
+    public bool Success { get; init; }
+    public int RecordCount { get; init; }
+    public int ChangedRecordCount { get; init; }
+    public string? Error { get; init; }
+}
+
+public sealed class RecordChangeHistoryItem
+{
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public Guid AutomationId { get; init; }
+    public Guid OccurrenceId { get; init; }
+    public required string RecordKey { get; init; }
+    public DateTimeOffset DetectedAt { get; init; }
+    public required Dictionary<string, string?> PreviousSnapshot { get; init; }
+    public required Dictionary<string, string?> CurrentSnapshot { get; init; }
+    public required List<string> ChangedFields { get; init; }
 }
 
 public sealed class DashboardSnapshot

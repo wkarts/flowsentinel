@@ -104,7 +104,7 @@ public sealed class FlowStoreSqliteTests
             await validationConnection.OpenAsync();
             await using var validationCommand = validationConnection.CreateCommand();
             validationCommand.CommandText = "PRAGMA user_version;";
-            Assert.Equal(4L, Convert.ToInt64(await validationCommand.ExecuteScalarAsync()));
+            Assert.Equal(5L, Convert.ToInt64(await validationCommand.ExecuteScalarAsync()));
         }
         finally
         {
@@ -441,6 +441,141 @@ public sealed class FlowStoreSqliteTests
         }
         finally
         {
+            DeleteTemporaryRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task DevePersistirHistoricoDeExecucoesEMudancasDetectadas()
+    {
+        var root = CreateTemporaryRoot();
+        var databasePath = Path.Combine(root, "data", "flowsentinel.db");
+
+        try
+        {
+            var definition = CreateAutomation("Histórico");
+            var occurrenceId = Guid.NewGuid();
+            var now = DateTimeOffset.UtcNow;
+            await using (var provider = CreateProvider(root))
+            {
+                var store = provider.GetRequiredService<IFlowStore>();
+                await store.InitializeAsync(CancellationToken.None);
+                await store.SaveAutomationAsync(definition, CancellationToken.None);
+                await store.AddAutomationExecutionHistoryAsync(new AutomationExecutionHistoryItem
+                {
+                    AutomationId = definition.Id,
+                    StartedAt = now,
+                    CompletedAt = now.AddSeconds(2),
+                    Success = true,
+                    RecordCount = 10,
+                    ChangedRecordCount = 1
+                }, CancellationToken.None);
+                await store.AddRecordChangeHistoryAsync(new RecordChangeHistoryItem
+                {
+                    AutomationId = definition.Id,
+                    OccurrenceId = occurrenceId,
+                    RecordKey = "CLIENTE-1|JAN",
+                    DetectedAt = now,
+                    PreviousSnapshot = new Dictionary<string, string?> { ["Status"] = "P" },
+                    CurrentSnapshot = new Dictionary<string, string?> { ["Status"] = "X" },
+                    ChangedFields = ["Status"]
+                }, CancellationToken.None);
+            }
+
+            await using var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False");
+            await connection.OpenAsync();
+            await using var executionCommand = connection.CreateCommand();
+            executionCommand.CommandText = "SELECT RecordCount, ChangedRecordCount, Success FROM automation_execution_history WHERE AutomationId = $id;";
+            executionCommand.Parameters.AddWithValue("$id", definition.Id.ToString().ToUpperInvariant());
+            await using var executionReader = await executionCommand.ExecuteReaderAsync();
+            Assert.True(await executionReader.ReadAsync());
+            Assert.Equal(10, executionReader.GetInt32(0));
+            Assert.Equal(1, executionReader.GetInt32(1));
+            Assert.True(executionReader.GetBoolean(2));
+            await executionReader.CloseAsync();
+
+            await using var changeCommand = connection.CreateCommand();
+            changeCommand.CommandText = "SELECT RecordKey, ChangedFieldsJson FROM record_change_history WHERE AutomationId = $id;";
+            changeCommand.Parameters.AddWithValue("$id", definition.Id.ToString().ToUpperInvariant());
+            await using var changeReader = await changeCommand.ExecuteReaderAsync();
+            Assert.True(await changeReader.ReadAsync());
+            Assert.Equal("CLIENTE-1|JAN", changeReader.GetString(0));
+            Assert.Contains("Status", changeReader.GetString(1), StringComparison.Ordinal);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            DeleteTemporaryRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task EstadoDaAcaoDeveControlarEpisodiosRepeticaoECancelamentoSeletivo()
+    {
+        var root = CreateTemporaryRoot();
+
+        try
+        {
+            await using var provider = CreateProvider(root);
+            var store = provider.GetRequiredService<IFlowStore>();
+            await store.InitializeAsync(CancellationToken.None);
+
+            var definition = CreateAutomation("Pendência recorrente");
+            var occurrenceId = Guid.NewGuid();
+            var pendingActionId = Guid.NewGuid();
+            var otherActionId = Guid.NewGuid();
+            var now = DateTimeOffset.UtcNow;
+            await store.SaveAutomationAsync(definition, CancellationToken.None);
+            await store.CreateOccurrenceAsync(new OccurrenceStoreItem
+            {
+                Id = occurrenceId,
+                AutomationId = definition.Id,
+                RecordKey = "REGISTRO-1|JAN",
+                Status = OccurrenceStatus.Active,
+                OpenedAt = now,
+                LastEvaluatedAt = now,
+                Snapshot = new Dictionary<string, string?> { ["Status"] = "P" },
+                Fingerprint = "P"
+            }, CancellationToken.None);
+
+            var firstEpisode = await store.UpdateActionConditionStateAsync(
+                occurrenceId, pendingActionId, true, true, now, CancellationToken.None);
+            Assert.True(firstEpisode.ConditionActive);
+            Assert.Equal(1, firstEpisode.EpisodeNumber);
+            Assert.Equal(0, firstEpisode.ExecutionCount);
+
+            await store.MarkActionScheduledAsync(
+                occurrenceId, pendingActionId, firstEpisode.EpisodeNumber, 1, now, CancellationToken.None);
+            var scheduled = await store.GetActionScheduleStateAsync(occurrenceId, pendingActionId, CancellationToken.None);
+            Assert.Equal(1, scheduled.ExecutionCount);
+            Assert.Equal(now, scheduled.LastScheduledAt);
+
+            var closed = await store.UpdateActionConditionStateAsync(
+                occurrenceId, pendingActionId, false, true, now.AddMinutes(1), CancellationToken.None);
+            Assert.False(closed.ConditionActive);
+            Assert.Equal(1, closed.EpisodeNumber);
+
+            var secondEpisode = await store.UpdateActionConditionStateAsync(
+                occurrenceId, pendingActionId, true, true, now.AddMinutes(2), CancellationToken.None);
+            Assert.True(secondEpisode.ConditionActive);
+            Assert.Equal(2, secondEpisode.EpisodeNumber);
+            Assert.Equal(0, secondEpisode.ExecutionCount);
+            Assert.Null(secondEpisode.LastScheduledAt);
+
+            var pendingDelivery = CreateDelivery(
+                definition.Id, occurrenceId, pendingActionId, 1, now, now);
+            var unrelatedDelivery = CreateDelivery(
+                definition.Id, occurrenceId, otherActionId, 1, now, now);
+            await store.AddDeliveriesAsync([pendingDelivery, unrelatedDelivery], CancellationToken.None);
+            await store.CancelPendingDeliveriesAsync(occurrenceId, pendingActionId, CancellationToken.None);
+
+            var claimed = await store.ClaimDueDeliveriesAsync(now.AddMinutes(1), 10, CancellationToken.None);
+            Assert.DoesNotContain(claimed, x => x.Id == pendingDelivery.Id);
+            Assert.Contains(claimed, x => x.Id == unrelatedDelivery.Id);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
             DeleteTemporaryRoot(root);
         }
     }

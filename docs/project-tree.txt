@@ -1,4 +1,4 @@
-FlowSentinel 0.4.0 - Árvore do projeto
+FlowSentinel 0.4.1 - Árvore do projeto
 
 .editorconfig
 .gitattributes
@@ -28,12 +28,15 @@ docs/examples/source-planilha-matriz-contabil.json
 docs/examples/source-planilha-matriz-generica.json
 docs/FlowSentinel-0.3.0-PR.md
 docs/FlowSentinel-0.4.0-PR.md
+docs/FlowSentinel-0.4.1-PR.md
 docs/github-flow.md
+docs/pending-monitoring-and-model-compatibility-0.4.1.md
 docs/project-tree.txt
 docs/release-process.md
 docs/runtime-notification-analysis-0.4.0.md
 docs/source-manifest.sha256
 docs/validation-0.4.0-professional-workbook-assistant.md
+docs/validation-0.4.1-ci-pending-monitoring.md
 docs/validation-aggregate-settings-scope-fix.md
 docs/validation-generic-matrix-fix.md
 docs/validation.md
@@ -52,6 +55,7 @@ scripts/init-repository.ps1
 scripts/install-service.ps1
 scripts/publish.ps1
 scripts/sign-artifacts.ps1
+scripts/static-validate-0.4.1.py
 scripts/uninstall-service.ps1
 scripts/validate.ps1
 SECURITY.md
@@ -156,6 +160,7 @@ tests/FlowSentinel.Desktop.Tests/VisualEditorSupportTests.cs
 tests/FlowSentinel.Domain.Tests/AutomationDefinitionTests.cs
 tests/FlowSentinel.Domain.Tests/FlowSentinel.Domain.Tests.csproj
 tests/FlowSentinel.Domain.Tests/GlobalUsings.cs
+tests/FlowSentinel.Infrastructure.Tests/AutomationExecutorPendingTests.cs
 tests/FlowSentinel.Infrastructure.Tests/ExcelSectionedMatrixParserTests.cs
 tests/FlowSentinel.Infrastructure.Tests/FlowSentinel.Infrastructure.Tests.csproj
 tests/FlowSentinel.Infrastructure.Tests/FlowStoreSqliteTests.cs

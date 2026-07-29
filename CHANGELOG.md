@@ -6,6 +6,30 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 
 ## [Não publicado]
 
+## [0.4.1] - 2026-07-29
+
+### Corrigido
+
+- Corrigidos os três testes de infraestrutura que falhavam no CI após a alteração segura do padrão `GenerateAggregateRecords` para `false`; os testes que validam agregações agora habilitam essa capacidade explicitamente.
+- Mantido o padrão seguro da versão 0.4.0: indicadores agregados continuam opcionais e não voltam a gerar cascatas de notificações automaticamente.
+- Preservada a compatibilidade das automações existentes, inclusive chaves de idempotência legadas, aliases de planilha e modelos de notificação anteriores.
+
+### Adicionado
+
+- Ciclo de ação persistente com condições independentes de ativação, permanência e conclusão.
+- Lembretes recorrentes enquanto uma pendência permanecer sem atingir o valor esperado.
+- Encerramento automático do ciclo e cancelamento seletivo das entregas pendentes da ação concluída.
+- Reinício controlado da contagem quando a mesma pendência voltar a ocorrer, com número de episódio persistido.
+- Agenda por ação com dias da semana, horário inicial, horário final e suporte a janelas que atravessam a meia-noite.
+- Configuração visual de pendências no assistente de planilhas e no editor avançado de ações.
+- Histórico persistente resumido de cada execução e histórico detalhado das mudanças de registros, complementando o histórico já existente de ocorrências e entregas.
+- Testes de regressão para agenda, serialização de ações antigas, estado dos episódios, cancelamento seletivo, histórico e ciclo completo `P → X → P`.
+
+### Alterado
+
+- Persistência SQLite atualizada de forma aditiva para a versão interna 5, sem recriar o banco nem remover dados existentes.
+- Ações `WhileActive` podem optar por avaliação na abertura da ocorrência; o assistente habilita isso somente nos novos lembretes de pendência, mantendo ações antigas inalteradas.
+
 ### Corrigido
 
 - Corrigido o erro de compilação `CS0103` em `ExcelSectionedMatrixParser`, restaurando o acesso às configurações da matriz na geração de agregados por entidade.

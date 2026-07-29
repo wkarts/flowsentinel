@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using FlowSentinel.Application;
 using FlowSentinel.Domain;
@@ -74,6 +75,18 @@ internal sealed class StructuredWorkbookWizardForm : Form
     private readonly CheckBox _aggregateByCategory = new();
     private readonly CheckBox _aggregateByOwner = new();
     private readonly CheckBox _includeBlankAggregates = new();
+
+    private readonly CheckBox _pendingReminders = new();
+    private readonly TextBox _pendingValues = new();
+    private readonly TextBox _expectedValues = new();
+    private readonly NumericUpDown _pendingRepeatValue = Number(1, 100000, 60);
+    private readonly ComboBox _pendingRepeatUnit = new();
+    private readonly NumericUpDown _pendingMaxExecutions = Number(0, 100000, 0);
+    private readonly CheckBox _pendingScheduleEnabled = new();
+    private readonly DateTimePicker _pendingStartTime = new();
+    private readonly DateTimePicker _pendingEndTime = new();
+    private readonly CheckedListBox _pendingDays = new();
+
     private readonly DataGridView _channelGrid = new();
     private readonly TextBox _review = new();
 
@@ -199,6 +212,47 @@ internal sealed class StructuredWorkbookWizardForm : Form
 
         _countChanges.CheckedChanged += (_, _) => UpdateAggregateOptions();
         UpdateAggregateOptions();
+
+        _pendingReminders.Text = "Lembrar enquanto uma pendência continuar sem solução";
+        _pendingReminders.Checked = false;
+        _pendingReminders.AutoSize = true;
+        _pendingReminders.CheckedChanged += (_, _) => UpdatePendingOptions();
+        _pendingValues.Text = "P";
+        _pendingValues.PlaceholderText = "Ex.: P|PENDENTE|AGUARDANDO";
+        _expectedValues.Text = "X";
+        _expectedValues.PlaceholderText = "Ex.: X|CONCLUÍDO|RESOLVIDO";
+        _pendingRepeatUnit.DropDownStyle = ComboBoxStyle.DropDownList;
+        _pendingRepeatUnit.Items.AddRange(["Minutos", "Horas", "Dias"]);
+        _pendingRepeatUnit.SelectedIndex = 0;
+        _pendingScheduleEnabled.Text = "Restringir lembretes a dias e horários";
+        _pendingScheduleEnabled.AutoSize = true;
+        _pendingScheduleEnabled.CheckedChanged += (_, _) => UpdatePendingOptions();
+        foreach (var picker in new[] { _pendingStartTime, _pendingEndTime })
+        {
+            picker.Format = DateTimePickerFormat.Custom;
+            picker.CustomFormat = "HH:mm";
+            picker.ShowUpDown = true;
+            picker.Width = 110;
+        }
+        _pendingStartTime.Value = DateTime.Today.AddHours(8);
+        _pendingEndTime.Value = DateTime.Today.AddHours(18);
+        _pendingDays.CheckOnClick = true;
+        _pendingDays.Height = 96;
+        _pendingDays.Items.AddRange(new object[]
+        {
+            new DisplayItem<DayOfWeek>(DayOfWeek.Monday, "Segunda-feira"),
+            new DisplayItem<DayOfWeek>(DayOfWeek.Tuesday, "Terça-feira"),
+            new DisplayItem<DayOfWeek>(DayOfWeek.Wednesday, "Quarta-feira"),
+            new DisplayItem<DayOfWeek>(DayOfWeek.Thursday, "Quinta-feira"),
+            new DisplayItem<DayOfWeek>(DayOfWeek.Friday, "Sexta-feira"),
+            new DisplayItem<DayOfWeek>(DayOfWeek.Saturday, "Sábado"),
+            new DisplayItem<DayOfWeek>(DayOfWeek.Sunday, "Domingo")
+        });
+        for (var index = 0; index < 5; index++)
+        {
+            _pendingDays.SetItemChecked(index, true);
+        }
+        UpdatePendingOptions();
     }
 
     private void ConfigureChannelGrid()
@@ -458,20 +512,68 @@ internal sealed class StructuredWorkbookWizardForm : Form
 
     private TabPage BuildEventsPage()
     {
-        var page = Page("4. Eventos");
-        var split = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 560 };
+        var page = Page("4. Eventos e pendências");
+        var split = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 650 };
+
+        var left = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Padding = new Padding(4)
+        };
+        left.RowStyles.Add(new RowStyle(SizeType.Percent, 42));
+        left.RowStyles.Add(new RowStyle(SizeType.Percent, 58));
 
         var eventsGroup = Group("Mudanças que geram notificações");
         var events = CheckList(_valueChanges, _currentValueChanges, _ownerChanges, _monitorFormatting, _countChanges, _trackBlankCells);
         eventsGroup.Controls.Add(events);
 
-        var aggregateGroup = Group("Indicadores agregados");
-        var aggregates = CheckList(_aggregateGlobal, _aggregateByCategory, _aggregateByOwner, _includeBlankAggregates);
-        aggregates.Controls.Add(InformationBox(
-            "Indicadores agregados podem gerar várias mudanças derivadas de uma única edição. Eles ficam desativados por padrão para evitar excesso de mensagens."));
-        aggregateGroup.Controls.Add(aggregates);
+        var pendingGroup = Group("Lembretes recorrentes de pendência");
+        var pendingLayout = FormTable(235);
+        pendingLayout.Dock = DockStyle.Top;
+        pendingLayout.Controls.Add(_pendingReminders, 0, pendingLayout.RowCount);
+        pendingLayout.SetColumnSpan(_pendingReminders, 3);
+        pendingLayout.RowCount++;
+        AddField(pendingLayout, "Valores que iniciam a pendência", _pendingValues);
+        AddField(pendingLayout, "Valores esperados para concluir", _expectedValues);
 
-        split.Panel1.Controls.Add(eventsGroup);
+        var repeatPanel = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        _pendingRepeatValue.Width = 105;
+        _pendingRepeatUnit.Width = 105;
+        repeatPanel.Controls.Add(_pendingRepeatValue);
+        repeatPanel.Controls.Add(_pendingRepeatUnit);
+        AddField(pendingLayout, "Repetir a cada", repeatPanel);
+        AddField(pendingLayout, "Máximo de notificações", _pendingMaxExecutions);
+
+        pendingLayout.Controls.Add(_pendingScheduleEnabled, 0, pendingLayout.RowCount);
+        pendingLayout.SetColumnSpan(_pendingScheduleEnabled, 3);
+        pendingLayout.RowCount++;
+        var timePanel = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
+        timePanel.Controls.Add(new Label { Text = "Das", AutoSize = true, Margin = new Padding(0, 7, 4, 0) });
+        timePanel.Controls.Add(_pendingStartTime);
+        timePanel.Controls.Add(new Label { Text = "às", AutoSize = true, Margin = new Padding(8, 7, 4, 0) });
+        timePanel.Controls.Add(_pendingEndTime);
+        AddField(pendingLayout, "Janela de envio", timePanel);
+        AddField(pendingLayout, "Dias permitidos", _pendingDays);
+
+        var pendingContainer = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+        pendingContainer.Controls.Add(pendingLayout);
+        pendingGroup.Controls.Add(pendingContainer);
+
+        left.Controls.Add(eventsGroup, 0, 0);
+        left.Controls.Add(pendingGroup, 0, 1);
+
+        var aggregateGroup = Group("Indicadores agregados");
+        var aggregateLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+        aggregateLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        aggregateLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        aggregateLayout.Controls.Add(InformationBox(
+            "Indicadores agregados podem gerar várias mudanças derivadas de uma única edição. Eles ficam desativados por padrão para evitar excesso de mensagens."), 0, 0);
+        aggregateLayout.Controls.Add(CheckList(_aggregateGlobal, _aggregateByCategory, _aggregateByOwner, _includeBlankAggregates), 0, 1);
+        aggregateGroup.Controls.Add(aggregateLayout);
+
+        split.Panel1.Controls.Add(left);
         split.Panel2.Controls.Add(aggregateGroup);
         page.Controls.Add(split);
         return page;
@@ -595,6 +697,28 @@ internal sealed class StructuredWorkbookWizardForm : Form
                 if (_dataStartRow.Value > 0 && _dataEndRow.Value > 0 && _dataStartRow.Value > _dataEndRow.Value)
                 {
                     throw new InvalidOperationException("A primeira linha de dados não pode ser posterior à última linha.");
+                }
+            }
+
+            if (step >= 3 && _pendingReminders.Checked)
+            {
+                var pendingValues = ParseValues(_pendingValues.Text);
+                var expectedValues = ParseValues(_expectedValues.Text);
+                if (pendingValues.Count == 0)
+                {
+                    throw new InvalidOperationException("Informe ao menos um valor que inicia a pendência recorrente.");
+                }
+                if (expectedValues.Count == 0)
+                {
+                    throw new InvalidOperationException("Informe ao menos um valor esperado que encerra a pendência.");
+                }
+                if (pendingValues.Intersect(expectedValues, StringComparer.OrdinalIgnoreCase).Any())
+                {
+                    throw new InvalidOperationException("Um mesmo valor não pode iniciar e encerrar a pendência.");
+                }
+                if (_pendingScheduleEnabled.Checked && _pendingDays.CheckedItems.Count == 0)
+                {
+                    throw new InvalidOperationException("Selecione ao menos um dia para os lembretes de pendência.");
                 }
             }
 
@@ -783,6 +907,24 @@ internal sealed class StructuredWorkbookWizardForm : Form
         }
     }
 
+    private void UpdatePendingOptions()
+    {
+        var enabled = _pendingReminders.Checked;
+        foreach (var control in new Control[]
+                 {
+                     _pendingValues, _expectedValues, _pendingRepeatValue, _pendingRepeatUnit,
+                     _pendingMaxExecutions, _pendingScheduleEnabled
+                 })
+        {
+            control.Enabled = enabled;
+        }
+
+        var scheduleEnabled = enabled && _pendingScheduleEnabled.Checked;
+        _pendingStartTime.Enabled = scheduleEnabled;
+        _pendingEndTime.Enabled = scheduleEnabled;
+        _pendingDays.Enabled = scheduleEnabled;
+    }
+
     private async Task CreateDefinitionAsync()
     {
         if (!ValidateStep(5))
@@ -883,6 +1025,11 @@ internal sealed class StructuredWorkbookWizardForm : Form
                 $"{entity} {{{{Entity}}}} ({code.ToLowerInvariant()} {{{{Code}}}}), {category.ToLowerInvariant()} {{{{Category}}}}, {period.ToLowerInvariant()} {{{{Period}}}}: '{{{{previous.Status}}}}' → '{{{{Status}}}}'. Célula {{{{CellAddress}}}}. {owner}: {{{{Owner}}}}."));
         }
 
+        if (_pendingReminders.Checked)
+        {
+            actions.Add(BuildPendingAction(channels, entity, category, owner, period, value, code));
+        }
+
         if (_currentValueChanges.Checked)
         {
             actions.Add(BuildAction(
@@ -930,6 +1077,82 @@ internal sealed class StructuredWorkbookWizardForm : Form
         }
 
         return actions;
+    }
+
+    private ActionDefinition BuildPendingAction(
+        IReadOnlyCollection<SelectedChannel> channels,
+        string entity,
+        string category,
+        string owner,
+        string period,
+        string value,
+        string code)
+    {
+        var pendingValues = ParseValues(_pendingValues.Text);
+        var expectedValues = ParseValues(_expectedValues.Text);
+        var pendingExpression = string.Join("|", pendingValues);
+        var expectedExpression = string.Join("|", expectedValues);
+        var expectedDisplay = string.Join(", ", expectedValues);
+
+        var action = BuildAction(
+            $"Pendência recorrente de {value.ToLowerInvariant()}",
+            channels,
+            [Equal("__recordType", "Status"), In("Status", pendingExpression)],
+            $"Pendência em aberto — {{{{Entity}}}} / {{{{Period}}}}",
+            $"A pendência permanece em aberto para {entity.ToLowerInvariant()} {{{{Entity}}}} ({code.ToLowerInvariant()} {{{{Code}}}}), " +
+            $"{category.ToLowerInvariant()} {{{{Category}}}}, {period.ToLowerInvariant()} {{{{Period}}}}. " +
+            $"{value}: '{{{{StatusDisplay}}}}'. Valor esperado: '{expectedDisplay}'. Célula {{{{CellAddress}}}}. {owner}: {{{{Owner}}}}.");
+
+        action.EvaluateWhileActiveOnOpen = true;
+        action.Repeat = new RepeatPolicyDefinition
+        {
+            Enabled = true,
+            IntervalSeconds = PendingRepeatSeconds(),
+            MaxExecutions = (int)_pendingMaxExecutions.Value,
+            ResetOnConditionReentry = true
+        };
+        action.PersistenceConditions = new RuleSetDefinition
+        {
+            Type = RuleSetType.ActionPersistence,
+            Root = new RuleGroupDefinition
+            {
+                Operator = LogicalOperator.And,
+                Rules = [Equal("__recordType", "Status"), NotIn("Status", expectedExpression)]
+            }
+        };
+        action.CompletionConditions = new RuleSetDefinition
+        {
+            Type = RuleSetType.ActionCompletion,
+            Root = new RuleGroupDefinition
+            {
+                Operator = LogicalOperator.And,
+                Rules = [Equal("__recordType", "Status"), In("Status", expectedExpression)]
+            }
+        };
+        action.CancelPendingWhenConditionFails = true;
+        action.Schedule = new ActionScheduleDefinition
+        {
+            Enabled = _pendingScheduleEnabled.Checked,
+            StartTime = _pendingStartTime.Value.ToString("HH:mm", CultureInfo.InvariantCulture),
+            EndTime = _pendingEndTime.Value.ToString("HH:mm", CultureInfo.InvariantCulture),
+            DaysOfWeek = _pendingDays.CheckedItems
+                .Cast<DisplayItem<DayOfWeek>>()
+                .Select(x => x.Value)
+                .ToList()
+        };
+        return action;
+    }
+
+    private int PendingRepeatSeconds()
+    {
+        var multiplier = Convert.ToString(_pendingRepeatUnit.SelectedItem) switch
+        {
+            "Horas" => 3600,
+            "Dias" => 86400,
+            _ => 60
+        };
+        var seconds = decimal.ToInt64(_pendingRepeatValue.Value) * multiplier;
+        return (int)Math.Clamp(seconds, 1L, int.MaxValue);
     }
 
     private DataSourceDefinition BuildSource()
@@ -1079,6 +1302,9 @@ internal sealed class StructuredWorkbookWizardForm : Form
             _currentValueChanges.Checked ? "- Mudança do valor atual" : null,
             _ownerChanges.Checked ? "- Mudança de responsável" : null,
             _monitorFormatting.Checked ? "- Mudança de formatação" : null,
+            _pendingReminders.Checked
+                ? $"- Lembretes enquanto '{string.Join(", ", ParseValues(_pendingValues.Text))}' permanecer sem atingir '{string.Join(", ", ParseValues(_expectedValues.Text))}' (a cada {_pendingRepeatValue.Value} {_pendingRepeatUnit.SelectedItem}; máximo: {(_pendingMaxExecutions.Value == 0 ? "ilimitado" : _pendingMaxExecutions.Value.ToString(CultureInfo.InvariantCulture))})"
+                : null,
             _countChanges.Checked ? "- Indicadores agregados" : null
         }.Where(x => x is not null);
 
@@ -1105,6 +1331,26 @@ internal sealed class StructuredWorkbookWizardForm : Form
         Field = field,
         Operator = RuleOperator.Changed
     };
+
+    private static RuleDefinition In(string field, string values) => new()
+    {
+        Field = field,
+        Operator = RuleOperator.In,
+        ExpectedValue = values
+    };
+
+    private static RuleDefinition NotIn(string field, string values) => new()
+    {
+        Field = field,
+        Operator = RuleOperator.NotIn,
+        ExpectedValue = values
+    };
+
+    private static IReadOnlyList<string> ParseValues(string? value) =>
+        (value ?? string.Empty)
+            .Split(['|', ';', ',', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     private static NumericUpDown Number(int minimum, int maximum, int value) => new()
     {
