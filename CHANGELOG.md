@@ -8,6 +8,8 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 
 ### Corrigido
 
+- Corrigido o erro de compilação `CS0103` em `ExcelSectionedMatrixParser`, restaurando o acesso às configurações da matriz na geração de agregados por entidade.
+- Adicionado teste de regressão para garantir que agregados `EntitiesByCurrentValue` utilizem o nome plural configurado da entidade, sem fixar o domínio da planilha.
 - Eliminado o conflito entre o namespace `FlowSentinel.Application` e `System.Windows.Forms.Application`, corrigindo os erros `CS0234` em `Program`, `MainForm`, `TrayApplicationContext` e `StartupRegistration`.
 - Substituída a propriedade de estado `AllowClose` por campo privado e método interno, removendo definitivamente a origem do `WFO1000`.
 - Consolidada a correção de validação em um pacote cumulativo para evitar aplicação parcial de patches anteriores.
@@ -24,6 +26,44 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 - Editor visual avançado de grupos lógicos.
 - Conectores adicionais por plugins externos.
 - Administração centralizada opcional.
+
+## [0.3.0] - 2026-07-28
+
+### Adicionado
+
+- Modelo guiado RP-102 opcional e editor visual genérico para criar um único monitoramento de toda uma planilha estruturada.
+- Análise estrutural antes da criação, com quantidade de entidades, grupos, valores monitorados, abas e avisos.
+- Modo Excel `SectionedMatrix` configurável para reconhecer vários blocos, cabeçalhos repetidos, entidades, responsáveis e colunas de acompanhamento na mesma aba.
+- Seleção automática da aba anual mais recente, seleção fixa ou leitura de todas as abas compatíveis.
+- Registros normalizados por entidade e por célula de valor, sem exigir uma automação por item.
+- Cálculo configurável do valor atual por último preenchido ou calendário definido pelo usuário, com exclusões opcionais.
+- Indicadores de entidades por valor atual e células por valor/período.
+- Agregações gerais, por grupo/categoria e por responsável.
+- Painel administrativo com visualização semelhante à planilha original, preservando posição, conteúdo, larguras de colunas, alturas de linhas, cores e destaques.
+- Filtros por tipo, entidade, código, grupo, responsável, período e valor.
+- Linha de base local e comparação detalhada de inclusões, remoções e alterações.
+- Legenda administrativa configurável para códigos de situação.
+- Notificações específicas para mudança de valor, valor atual, responsável, quantidades, cores e destaques.
+- Suporte a variáveis `{{previous.Campo}}` nos templates de mensagens.
+- Reconhecimento configurável de listas especiais sem código, responsável ou períodos.
+- Testes para matrizes contábeis opcionais e para estruturas genéricas de outros domínios.
+
+### Corrigido durante a validação do PR
+
+- Corrigido o teste de detecção de células destacadas, tornando a leitura de preenchimento compatível com cores de fundo e padrão.
+- Eliminados os avisos de nulabilidade no parser, no assistente, nas fontes do sistema e nos testes.
+- Removidos do núcleo do parser os rótulos contábeis fixos, meses, `BAL`, `EMPRESAS`, `SIMPLES` e `SEM MOVIMENTO`.
+- Corrigida a detecção de cabeçalho quando o marcador está vazio, evitando classificar linhas comuns como cabeçalho.
+- Adicionados aliases genéricos `Entity`, `EntityKey`, `Owner`, `Category`, `Value` e `CurrentValue`, preservando aliases legados.
+- Adicionados nomes administrativos configuráveis para entidade, responsável, grupo, período, código e valor.
+- Tornado explícito na interface que RP-102 é apenas um modelo opcional.
+- Adicionado teste de matriz genérica de equipamentos sem vocabulário contábil.
+
+### Alterado
+
+- A tela principal passou a destacar o painel de planilhas; o atalho RP-102 é identificado como modelo opcional.
+- O leitor Excel de tabela simples foi preservado e passou a coexistir com o modo administrativo.
+- A versão do produto, instalador e pipeline foi atualizada para `0.3.0`.
 
 ## [0.2.3] - 2026-07-28
 

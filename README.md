@@ -71,7 +71,7 @@ Na primeira execução é criado o banco em:
 ## Publicação local
 
 ```powershell
-./scripts/publish.ps1 -Version 0.2.3
+./scripts/publish.ps1 -Version 0.3.0
 ```
 
 Os arquivos serão gerados em `artifacts/`.
@@ -88,8 +88,8 @@ Os arquivos serão gerados em `artifacts/`.
 3. Crie e envie a tag:
 
 ```powershell
-git tag v0.2.3
-git push origin v0.2.3
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 O workflow de release irá:
@@ -136,6 +136,25 @@ docs/examples/automation-clientes.json
 ```
 
 Consulte também `docs/visual-editor.md`.
+
+
+## Monitoramento genérico de planilhas estruturadas
+
+A versão 0.3.0 adiciona o modo Excel `SectionedMatrix` para planilhas que possuem vários grupos, cabeçalhos repetidos, colunas de acompanhamento, cores ou listas especiais.
+
+O mecanismo é genérico. Cada linha pode representar cliente, equipamento, tarefa, contrato, documento ou qualquer outra entidade. Os nomes exibidos, as colunas, os períodos, os prefixos e as regras de reconhecimento são configurados visualmente.
+
+Na tela principal:
+
+- **Nova automação avançada** permite configurar qualquer estrutura;
+- **Modelo RP-102 (opcional)** apenas preenche os parâmetros do arquivo contábil usado como caso de teste;
+- **Painel de planilhas** exibe a estrutura original, indicadores, entidades, valores e mudanças;
+- **Legenda de situações** associa os códigos ao significado definido pelo usuário;
+- **Gravar linha de base** e **Comparar alterações** mostram o que mudou entre leituras.
+
+Uma única automação pode monitorar toda a planilha. Não é necessário cadastrar uma automação por empresa ou por registro.
+
+Consulte `docs/complex-workbook-monitoring.md`, o exemplo genérico `docs/examples/source-planilha-matriz-generica.json` e o modelo opcional `docs/examples/source-planilha-matriz-contabil.json`.
 
 ## Segredos protegidos
 

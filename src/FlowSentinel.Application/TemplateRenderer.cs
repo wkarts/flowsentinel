@@ -23,6 +23,8 @@ public sealed partial class TemplateRenderer : ITemplateRenderer
                 "record.key" => context.RecordKey,
                 "now" => context.Now.ToString("dd/MM/yyyy HH:mm:ss", CultureInfo.GetCultureInfo("pt-BR")),
                 "today" => context.Now.ToString("dd/MM/yyyy", CultureInfo.GetCultureInfo("pt-BR")),
+                _ when token.StartsWith("previous.", StringComparison.OrdinalIgnoreCase) =>
+                    context.PreviousFields.GetValueOrDefault(token[9..]) ?? string.Empty,
                 _ => context.Fields.GetValueOrDefault(token) ?? string.Empty
             };
         });

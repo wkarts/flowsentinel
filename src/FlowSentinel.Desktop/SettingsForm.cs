@@ -38,7 +38,7 @@ internal sealed class SettingsForm : Form
     {
         Text = "Consultando...",
         AutoSize = true,
-        Font = new Font(SystemFonts.MessageBoxFont, FontStyle.Bold)
+        Font = new Font(SystemFonts.MessageBoxFont!, FontStyle.Bold)
     };
     private readonly Label _operationStatus = new() { AutoSize = true, ForeColor = Color.DimGray };
 
@@ -432,7 +432,7 @@ internal sealed class SettingsForm : Form
     {
         Text = text,
         AutoSize = true,
-        Font = new Font(SystemFonts.MessageBoxFont, FontStyle.Bold),
+        Font = new Font(SystemFonts.MessageBoxFont!, FontStyle.Bold),
         ForeColor = Color.FromArgb(5, 39, 83),
         Margin = new Padding(3, 12, 3, 8)
     };
@@ -454,7 +454,7 @@ internal sealed class SettingsForm : Form
     private static Control CreatePathBlock(string label, string path)
     {
         var panel = new TableLayoutPanel { AutoSize = true, ColumnCount = 1, Width = 720 };
-        panel.Controls.Add(new Label { Text = label, AutoSize = true, Font = new Font(SystemFonts.MessageBoxFont, FontStyle.Bold) });
+        panel.Controls.Add(new Label { Text = label, AutoSize = true, Font = new Font(SystemFonts.MessageBoxFont!, FontStyle.Bold) });
         panel.Controls.Add(new Label { Text = path, AutoSize = true, MaximumSize = new Size(700, 0), ForeColor = Color.DimGray });
         return panel;
     }

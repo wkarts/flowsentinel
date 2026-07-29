@@ -29,4 +29,22 @@ public sealed class TemplateRendererTests
         Assert.Contains("DOC-10", text);
         Assert.Contains("28/07/2026", text);
     }
+    [Fact]
+    public void DeveSubstituirValoresAnterioresEmMensagensDeMudanca()
+    {
+        var renderer = new TemplateRenderer();
+        var context = new EvaluationContext
+        {
+            Automation = new AutomationDefinition { Name = "Conferência" },
+            RecordKey = "empresa-10|JAN",
+            Fields = new Dictionary<string, string?> { ["Status"] = "X" },
+            PreviousFields = new Dictionary<string, string?> { ["Status"] = "SM" },
+            Now = DateTimeOffset.Now
+        };
+
+        var text = renderer.Render("Situação mudou de {{previous.Status}} para {{Status}}.", context);
+
+        Assert.Equal("Situação mudou de SM para X.", text);
+    }
+
 }

@@ -17,7 +17,7 @@ public sealed class DesktopSettingsTests
             Assert.True(settings.StartMinimizedToTray);
             Assert.True(settings.ShowSplashScreen);
             Assert.Equal(DesktopCloseBehavior.MinimizeToTray, settings.CloseBehavior);
-            Assert.True(settings.ServiceExecutablePath.EndsWith("FlowSentinel.Service.exe", StringComparison.OrdinalIgnoreCase));
+            Assert.EndsWith("FlowSentinel.Service.exe", settings.ServiceExecutablePath, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

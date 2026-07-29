@@ -21,4 +21,7 @@
     <PackageReference Include="Npgsql" />
     <PackageReference Include="FirebirdSql.Data.FirebirdClient" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FlowSentinel.Infrastructure.Tests" />
+  </ItemGroup>
 </Project>
