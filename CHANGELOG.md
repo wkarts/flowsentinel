@@ -6,6 +6,21 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 
 ## [Não publicado]
 
+## [0.4.4] - 2026-07-29
+
+### Corrigido
+
+- Corrigido o `OverflowException` na primeira atualização do splash, causado pela subtração entre `Stopwatch.Elapsed` e `TimeSpan.MinValue`.
+- O marcador da atualização visual passou a ser anulável; a primeira atualização ocorre sem subtração e as seguintes mantêm o intervalo de 250 ms.
+- O tempo decorrido é capturado uma única vez por iteração, mantendo as verificações de atualização e timeout consistentes.
+- A tarefa da etapa de inicialização é cancelada quando ocorre timeout ou outra falha, evitando trabalho residual após o fechamento do splash.
+- Adicionados testes de regressão para primeira atualização, intervalo de 250 ms e `TimeSpan.MaxValue`.
+
+### Compatibilidade
+
+- Nenhuma automação, modelo, canal, contato, histórico, banco ou regra de pendência foi alterada.
+- A correção é cumulativa sobre a versão 0.4.3 e não exige excluir `flowsentinel.db`.
+
 ## [0.4.3] - 2026-07-29
 
 ### Corrigido
