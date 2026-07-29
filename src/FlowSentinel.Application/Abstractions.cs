@@ -22,11 +22,18 @@ public interface ITemplateRenderer
 
 public interface IRecipientResolver
 {
-    IReadOnlyCollection<ResolvedRecipient> Resolve(
+    Task<IReadOnlyCollection<ResolvedRecipient>> ResolveAsync(
         AutomationDefinition automation,
         ActionDefinition action,
         ChannelType channelType,
-        EvaluationContext context);
+        EvaluationContext context,
+        CancellationToken cancellationToken);
+}
+
+public interface IContactDirectory
+{
+    Task<ContactDirectoryDefinition> GetSnapshotAsync(CancellationToken cancellationToken);
+    Task SaveAsync(ContactDirectoryDefinition definition, CancellationToken cancellationToken);
 }
 
 public interface INotificationChannel

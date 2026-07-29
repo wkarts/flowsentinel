@@ -229,6 +229,16 @@ public sealed class ActionDefinition
             throw new InvalidOperationException($"A ação '{Name}' possui um canal sem configuração vinculada.");
         }
 
+        if (Channels.Any(x => x.GroupingWindowSeconds < 0 || x.GroupingWindowSeconds > 300))
+        {
+            throw new InvalidOperationException($"A ação '{Name}' possui uma janela de agrupamento inválida. Use um valor entre 0 e 300 segundos.");
+        }
+
+        if (Channels.Any(x => x.ChannelType == ChannelType.LocalWindows && x.GroupingMode != NotificationGroupingMode.Individual))
+        {
+            throw new InvalidOperationException($"A ação '{Name}' deve manter notificações do Windows no modo individual.");
+        }
+
         if (Recipients.Count == 0 && Channels.Any(x => x.ChannelType != ChannelType.LocalWindows))
         {
             throw new InvalidOperationException($"A ação '{Name}' precisa possuir destinatários.");
@@ -276,6 +286,9 @@ public sealed class ActionChannelDefinition
     public ChannelType ChannelType { get; set; }
     public int Order { get; set; }
     public bool Required { get; set; }
+    public NotificationGroupingMode GroupingMode { get; set; } = NotificationGroupingMode.Individual;
+    public string GroupField { get; set; } = "EntityKey";
+    public int GroupingWindowSeconds { get; set; } = 8;
 }
 
 public sealed class RecipientDefinition
@@ -286,17 +299,120 @@ public sealed class RecipientDefinition
     public string DisplayName { get; set; } = string.Empty;
 }
 
+public sealed class ContactDirectoryDefinition
+{
+    public int Version { get; set; } = 1;
+    public List<ContactDefinition> Contacts { get; set; } = [];
+    public List<ContactGroupDefinition> Groups { get; set; } = [];
+
+    public void Validate()
+    {
+        Contacts ??= [];
+        Groups ??= [];
+
+        var contactIds = new HashSet<Guid>();
+        foreach (var contact in Contacts)
+        {
+            contact.Validate();
+            if (!contactIds.Add(contact.Id))
+            {
+                throw new InvalidOperationException($"O contato '{contact.Name}' possui identificador duplicado.");
+            }
+        }
+
+        var groupIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var group in Groups)
+        {
+            group.Validate();
+            if (!groupIds.Add(group.Id))
+            {
+                throw new InvalidOperationException($"O grupo de contatos '{group.Id}' está duplicado.");
+            }
+
+            var unknownContact = group.ContactIds.FirstOrDefault(x => !contactIds.Contains(x));
+            if (unknownContact != Guid.Empty)
+            {
+                throw new InvalidOperationException($"O grupo '{group.Name}' referencia um contato inexistente: {unknownContact}.");
+            }
+        }
+    }
+}
+
 public sealed class ContactGroupDefinition
 {
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public bool Enabled { get; set; } = true;
+    public ContactAccessScope AccessScope { get; set; } = ContactAccessScope.AllAutomations;
+    public List<Guid> AllowedAutomationIds { get; set; } = [];
+    public List<Guid> ContactIds { get; set; } = [];
+
+    // Mantido para compatibilidade com automações antigas que armazenavam os contatos dentro do próprio grupo.
     public List<ContactDefinition> Contacts { get; set; } = [];
+
+    public bool CanBeUsedBy(Guid automationId) =>
+        Enabled && (AccessScope == ContactAccessScope.AllAutomations || (AllowedAutomationIds ?? []).Contains(automationId));
+
+    public void Validate()
+    {
+        AllowedAutomationIds ??= [];
+        ContactIds ??= [];
+        Contacts ??= [];
+
+        if (string.IsNullOrWhiteSpace(Id))
+        {
+            throw new InvalidOperationException("Todo grupo de contatos precisa possuir um identificador.");
+        }
+        if (string.IsNullOrWhiteSpace(Name))
+        {
+            throw new InvalidOperationException($"Informe o nome do grupo de contatos '{Id}'.");
+        }
+        if (AccessScope == ContactAccessScope.SelectedAutomations && AllowedAutomationIds.Count == 0)
+        {
+            throw new InvalidOperationException($"O grupo '{Name}' está restrito, mas nenhuma automação foi autorizada.");
+        }
+        if (ContactIds.Count == 0 && Contacts.Count == 0)
+        {
+            throw new InvalidOperationException($"O grupo '{Name}' precisa possuir ao menos um contato.");
+        }
+    }
 }
 
 public sealed class ContactDefinition
 {
+    public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = string.Empty;
+    public bool Enabled { get; set; } = true;
+    public string Notes { get; set; } = string.Empty;
+    public ContactAccessScope AccessScope { get; set; } = ContactAccessScope.AllAutomations;
+    public List<Guid> AllowedAutomationIds { get; set; } = [];
     public Dictionary<ChannelType, List<string>> Addresses { get; set; } = [];
+
+    public bool CanBeUsedBy(Guid automationId) =>
+        Enabled && (AccessScope == ContactAccessScope.AllAutomations || (AllowedAutomationIds ?? []).Contains(automationId));
+
+    public void Validate()
+    {
+        AllowedAutomationIds ??= [];
+        Addresses ??= [];
+
+        if (Id == Guid.Empty)
+        {
+            throw new InvalidOperationException("Todo contato precisa possuir um identificador.");
+        }
+        if (string.IsNullOrWhiteSpace(Name))
+        {
+            throw new InvalidOperationException("Todo contato precisa possuir um nome.");
+        }
+        if (AccessScope == ContactAccessScope.SelectedAutomations && AllowedAutomationIds.Count == 0)
+        {
+            throw new InvalidOperationException($"O contato '{Name}' está restrito, mas nenhuma automação foi autorizada.");
+        }
+        if (!Addresses.Any(x => x.Value is not null && x.Value.Any(value => !string.IsNullOrWhiteSpace(value))))
+        {
+            throw new InvalidOperationException($"O contato '{Name}' precisa possuir ao menos um endereço de notificação.");
+        }
+    }
 }
 
 public static class FlowJson

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using FlowSentinel.Application;
 using FlowSentinel.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +9,7 @@ namespace FlowSentinel.Infrastructure.Persistence;
 
 internal sealed class FlowStore : IFlowStore
 {
-    private const int CurrentStorageVersion = 2;
+    private const int CurrentStorageVersion = 4;
 
     public static readonly Guid LocalChannelId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
@@ -353,7 +354,12 @@ internal sealed class FlowStore : IFlowStore
         entity.LastError = Truncate(result.Error, 4000);
         entity.ExternalMessageId = Truncate(result.ExternalMessageId, 500);
 
-        if (result.Success)
+        if (result.IsSkipped)
+        {
+            entity.Status = DeliveryStatus.Skipped;
+            entity.SentAt = null;
+        }
+        else if (result.Success)
         {
             entity.Status = DeliveryStatus.Sent;
             entity.SentAt = DateTime.UtcNow;
@@ -491,9 +497,11 @@ internal sealed class FlowStore : IFlowStore
                 return;
             }
 
+            var disabledLegacyAggregateActionIds = new HashSet<Guid>();
             var automations = await context.Automations.ToArrayAsync(cancellationToken);
             foreach (var entity in automations)
             {
+                UpgradeLegacyWorkbookDefinition(entity, disabledLegacyAggregateActionIds);
                 entity.LastRunAt = NormalizeUtc(entity.LastRunAt);
                 entity.NextRunAt = NormalizeUtc(entity.NextRunAt);
                 entity.CreatedAt = NormalizeUtc(entity.CreatedAt);
@@ -517,6 +525,12 @@ internal sealed class FlowStore : IFlowStore
                 context.Entry(entity).Property(x => x.ResolvedAt).IsModified = true;
             }
 
+            var channels = await context.ChannelConfigurations.ToArrayAsync(cancellationToken);
+            var enabledChannelIds = channels
+                .Where(x => x.Enabled)
+                .Select(x => x.Id)
+                .ToHashSet();
+
             var deliveries = await context.Deliveries.ToArrayAsync(cancellationToken);
             foreach (var entity in deliveries)
             {
@@ -527,9 +541,30 @@ internal sealed class FlowStore : IFlowStore
                 context.Entry(entity).Property(x => x.CreatedAt).IsModified = true;
                 context.Entry(entity).Property(x => x.DueAt).IsModified = true;
                 context.Entry(entity).Property(x => x.SentAt).IsModified = true;
+
+                if (disabledLegacyAggregateActionIds.Contains(entity.ActionId) &&
+                    (entity.Status == DeliveryStatus.Pending ||
+                     entity.Status == DeliveryStatus.RetryScheduled ||
+                     entity.Status == DeliveryStatus.Processing))
+                {
+                    entity.Status = DeliveryStatus.Cancelled;
+                    entity.LastError = "Entrega cancelada pela atualização do assistente de planilhas: indicadores legados foram desativados.";
+                    context.Entry(entity).Property(x => x.Status).IsModified = true;
+                    context.Entry(entity).Property(x => x.LastError).IsModified = true;
+                }
+                else if (!enabledChannelIds.Contains(entity.ChannelConfigurationId) &&
+                         (entity.Status == DeliveryStatus.Pending ||
+                          entity.Status == DeliveryStatus.RetryScheduled ||
+                          entity.Status == DeliveryStatus.Processing ||
+                          entity.Status == DeliveryStatus.Failed))
+                {
+                    entity.Status = DeliveryStatus.Skipped;
+                    entity.LastError = "Canal removido ou desabilitado; entrega ignorada pela atualização sem registrar falha operacional.";
+                    context.Entry(entity).Property(x => x.Status).IsModified = true;
+                    context.Entry(entity).Property(x => x.LastError).IsModified = true;
+                }
             }
 
-            var channels = await context.ChannelConfigurations.ToArrayAsync(cancellationToken);
             foreach (var entity in channels)
             {
                 entity.CreatedAt = NormalizeUtc(entity.CreatedAt);
@@ -558,6 +593,113 @@ internal sealed class FlowStore : IFlowStore
                 await connection.CloseAsync();
             }
         }
+    }
+
+    private void UpgradeLegacyWorkbookDefinition(
+        AutomationEntity entity,
+        ISet<Guid> disabledAggregateActionIds)
+    {
+        try
+        {
+            var definition = JsonSerializer.Deserialize<AutomationDefinition>(entity.DefinitionJson, FlowJson.Options);
+            if (definition is null)
+            {
+                return;
+            }
+
+            var changed = false;
+            foreach (var action in definition.Actions)
+            {
+                foreach (var channel in action.Channels.Where(x => x.ChannelType == ChannelType.LocalWindows))
+                {
+                    if (channel.GroupingMode != NotificationGroupingMode.Individual || channel.GroupingWindowSeconds != 0)
+                    {
+                        channel.GroupingMode = NotificationGroupingMode.Individual;
+                        channel.GroupingWindowSeconds = 0;
+                        changed = true;
+                    }
+                }
+            }
+
+            var source = definition.Sources.FirstOrDefault(x => x.Type == SourceType.Excel &&
+                                                                 x.Configuration.ValueKind == JsonValueKind.Object);
+            var profileName = source is not null && source.Configuration.TryGetProperty("profileName", out var profileElement)
+                ? profileElement.GetString() ?? string.Empty
+                : string.Empty;
+            var mode = source is not null && source.Configuration.TryGetProperty("mode", out var modeElement)
+                ? modeElement.GetString() ?? string.Empty
+                : string.Empty;
+            var sourceName = source?.Name ?? string.Empty;
+            var isRp102 = source is not null &&
+                          string.Equals(mode, "SectionedMatrix", StringComparison.OrdinalIgnoreCase) &&
+                          (profileName.Contains("RP-102", StringComparison.OrdinalIgnoreCase) ||
+                           sourceName.Contains("RP-102", StringComparison.OrdinalIgnoreCase) ||
+                           definition.Name.Contains("RP-102", StringComparison.OrdinalIgnoreCase));
+
+            if (isRp102)
+            {
+                foreach (var action in definition.Actions.Where(x =>
+                             string.Equals(x.Name, "Mudança de quantidade por situação", StringComparison.OrdinalIgnoreCase) ||
+                             x.MessageTemplate.Contains("O indicador {{Metric}}", StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (action.Enabled)
+                    {
+                        action.Enabled = false;
+                        changed = true;
+                    }
+                    disabledAggregateActionIds.Add(action.Id);
+                }
+
+                var root = JsonNode.Parse(source!.Configuration.GetRawText()) as JsonObject;
+                var matrix = root?["matrix"] as JsonObject;
+                if (matrix is not null)
+                {
+                    changed |= SetBoolean(matrix, "generateAggregateRecords", false);
+                    changed |= SetBoolean(matrix, "aggregateGlobal", false);
+                    changed |= SetBoolean(matrix, "aggregateBySection", false);
+                    changed |= SetBoolean(matrix, "aggregateByCollaborator", false);
+                    changed |= SetBoolean(matrix, "includeBlankValuesInAggregates", false);
+                    using var upgradedDocument = JsonDocument.Parse(root!.ToJsonString(FlowJson.Options));
+                    source.Configuration = upgradedDocument.RootElement.Clone();
+                }
+            }
+
+            if (!changed)
+            {
+                return;
+            }
+
+            entity.DefinitionJson = JsonSerializer.Serialize(definition, FlowJson.Options);
+            entity.UpdatedAt = DateTime.UtcNow;
+            if (isRp102)
+            {
+                _logger.LogInformation(
+                    "Automação legada RP-102 '{AutomationName}' atualizada: indicadores agregados automáticos foram desativados para evitar notificações derivadas em excesso.",
+                    definition.Name);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Automação '{AutomationName}' atualizada para manter notificações locais do Windows no modo individual.",
+                    definition.Name);
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Não foi possível atualizar a automação legada '{AutomationName}'.", entity.Name);
+        }
+    }
+
+    private static bool SetBoolean(JsonObject target, string propertyName, bool value)
+    {
+        if (target[propertyName] is JsonValue currentNode &&
+            currentNode.TryGetValue<bool>(out var current) &&
+            current == value)
+        {
+            return false;
+        }
+        target[propertyName] = value;
+        return true;
     }
 
     private async Task SeedAsync(FlowSentinelDbContext context, CancellationToken cancellationToken)

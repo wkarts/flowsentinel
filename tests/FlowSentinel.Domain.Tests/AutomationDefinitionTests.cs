@@ -31,6 +31,50 @@ public sealed class AutomationDefinitionTests
         definition.Validate();
     }
 
+
+    [Fact]
+    public void DeveAceitarAgrupamentoPorRegistroEmCanalExterno()
+    {
+        var definition = CreateValidDefinition();
+        definition.Actions[0].Channels[0].GroupingMode = NotificationGroupingMode.Individual;
+        definition.Actions.Add(new ActionDefinition
+        {
+            Name = "WhatsApp agrupado",
+            MessageTemplate = "Alteração {{Entity}}",
+            Channels =
+            [
+                new ActionChannelDefinition
+                {
+                    ChannelConfigurationId = Guid.NewGuid(),
+                    ChannelType = ChannelType.EvolutionApi,
+                    GroupingMode = NotificationGroupingMode.ByEntity,
+                    GroupField = "EntityKey",
+                    GroupingWindowSeconds = 10
+                }
+            ],
+            Recipients =
+            [
+                new RecipientDefinition
+                {
+                    Type = RecipientType.Fixed,
+                    ChannelType = ChannelType.EvolutionApi,
+                    Value = "5599999999999"
+                }
+            ]
+        });
+
+        definition.Validate();
+    }
+
+    [Fact]
+    public void DeveRejeitarAgrupamentoNaNotificacaoDoWindows()
+    {
+        var definition = CreateValidDefinition();
+        definition.Actions[0].Channels[0].GroupingMode = NotificationGroupingMode.SingleMessage;
+
+        Assert.Throws<InvalidOperationException>(definition.Validate);
+    }
+
     [Fact]
     public void DeveRejeitarAutomacaoSemFontePrimaria()
     {
@@ -98,4 +142,55 @@ public sealed class AutomationDefinitionTests
             }
         ]
     };
+}
+
+public sealed class ContactDirectoryDefinitionTests
+{
+    [Fact]
+    public void DeveValidarCatalogoComContatosEGruposReutilizaveis()
+    {
+        var contact = new ContactDefinition
+        {
+            Name = "Gestor",
+            Addresses = new Dictionary<ChannelType, List<string>>
+            {
+                [ChannelType.EvolutionApi] = ["+5575999999999"]
+            }
+        };
+        var directory = new ContactDirectoryDefinition
+        {
+            Contacts = [contact],
+            Groups =
+            [
+                new ContactGroupDefinition
+                {
+                    Id = "gestores",
+                    Name = "Gestores",
+                    ContactIds = [contact.Id]
+                }
+            ]
+        };
+
+        directory.Validate();
+    }
+
+    [Fact]
+    public void DeveRejeitarGrupoComContatoInexistente()
+    {
+        var directory = new ContactDirectoryDefinition
+        {
+            Groups =
+            [
+                new ContactGroupDefinition
+                {
+                    Id = "gestores",
+                    Name = "Gestores",
+                    ContactIds = [Guid.NewGuid()]
+                }
+            ]
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(() => directory.Validate());
+        Assert.Contains("contato inexistente", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }

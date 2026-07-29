@@ -95,6 +95,11 @@ internal static class ExcelSectionedMatrixParser
         for (var rowNumber = 1; rowNumber <= lastRow; rowNumber++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (matrix.DataEndRow > 0 && rowNumber > matrix.DataEndRow)
+            {
+                break;
+            }
+
             var row = worksheet.Row(rowNumber);
             var numberText = GetText(row.Cell(matrix.NumberColumn));
             var sectionOrCompany = GetText(row.Cell(matrix.SectionColumn));
@@ -136,6 +141,11 @@ internal static class ExcelSectionedMatrixParser
                     rowNumber,
                     withoutPeriods ? [] : inheritedPeriods,
                     withoutPeriods);
+                continue;
+            }
+
+            if (matrix.DataStartRow > 0 && rowNumber < matrix.DataStartRow)
+            {
                 continue;
             }
 
@@ -304,18 +314,21 @@ internal static class ExcelSectionedMatrixParser
         ExcelMatrixSettings settings)
     {
         var results = new List<DataRecord>();
-        AddStatusCellAggregates(results, sourceAlias, statusFields, "Global", _ => "Todos");
-        AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Global", settings, _ => "Todos");
+        if (settings.AggregateGlobal)
+        {
+            AddStatusCellAggregates(results, sourceAlias, statusFields, "Global", settings, _ => "Todos");
+            AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Global", settings, _ => "Todos");
+        }
 
         if (settings.AggregateBySection)
         {
-            AddStatusCellAggregates(results, sourceAlias, statusFields, "Category", x => x.GetValueOrDefault("Category") ?? x.GetValueOrDefault("Section") ?? "Sem grupo");
+            AddStatusCellAggregates(results, sourceAlias, statusFields, "Category", settings, x => x.GetValueOrDefault("Category") ?? x.GetValueOrDefault("Section") ?? "Sem grupo");
             AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Category", settings, x => x.GetValueOrDefault("Category") ?? x.GetValueOrDefault("Section") ?? "Sem grupo");
         }
 
         if (settings.AggregateByCollaborator)
         {
-            AddStatusCellAggregates(results, sourceAlias, statusFields, "Owner", x => x.GetValueOrDefault("Owner") ?? x.GetValueOrDefault("Collaborator") ?? "Sem responsável");
+            AddStatusCellAggregates(results, sourceAlias, statusFields, "Owner", settings, x => x.GetValueOrDefault("Owner") ?? x.GetValueOrDefault("Collaborator") ?? "Sem responsável");
             AddCompanyStatusAggregates(results, sourceAlias, companyFields, "Owner", settings, x => x.GetValueOrDefault("Owner") ?? x.GetValueOrDefault("Collaborator") ?? "Sem responsável");
         }
 
@@ -327,9 +340,13 @@ internal static class ExcelSectionedMatrixParser
         string sourceAlias,
         IEnumerable<Dictionary<string, string?>> statusFields,
         string scope,
+        ExcelMatrixSettings settings,
         Func<Dictionary<string, string?>, string> groupSelector)
     {
-        var groups = statusFields.GroupBy(x => new
+        var eligibleFields = settings.IncludeBlankValuesInAggregates
+            ? statusFields
+            : statusFields.Where(x => !string.IsNullOrWhiteSpace(x.GetValueOrDefault("Status")));
+        var groups = eligibleFields.GroupBy(x => new
         {
             Worksheet = x.GetValueOrDefault("Worksheet") ?? string.Empty,
             Year = x.GetValueOrDefault("Year") ?? string.Empty,
@@ -353,7 +370,8 @@ internal static class ExcelSectionedMatrixParser
                 group.Key.Period,
                 group.Key.Status,
                 group.Key.Meaning,
-                group.Count());
+                group.Count(),
+                settings);
         }
     }
 
@@ -365,7 +383,10 @@ internal static class ExcelSectionedMatrixParser
         ExcelMatrixSettings settings,
         Func<Dictionary<string, string?>, string> groupSelector)
     {
-        var groups = companyFields.GroupBy(x => new
+        var eligibleFields = settings.IncludeBlankValuesInAggregates
+            ? companyFields
+            : companyFields.Where(x => !string.IsNullOrWhiteSpace(x.GetValueOrDefault("CurrentStatus")));
+        var groups = eligibleFields.GroupBy(x => new
         {
             Worksheet = x.GetValueOrDefault("Worksheet") ?? string.Empty,
             Year = x.GetValueOrDefault("Year") ?? string.Empty,
@@ -393,7 +414,8 @@ internal static class ExcelSectionedMatrixParser
                 "Atual",
                 group.Key.Status,
                 group.Key.Meaning,
-                distinctCompanies);
+                distinctCompanies,
+                settings);
         }
     }
 
@@ -409,7 +431,8 @@ internal static class ExcelSectionedMatrixParser
         string period,
         string statusDisplay,
         string statusMeaning,
-        int count)
+        int count,
+        ExcelMatrixSettings settings)
     {
         var recordKey = $"aggregate|{metric}|{scope}|{worksheet}|{group}|{period}|{statusDisplay}";
         var fields = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
@@ -419,8 +442,17 @@ internal static class ExcelSectionedMatrixParser
             ["Worksheet"] = worksheet,
             ["Year"] = year,
             ["Metric"] = metric,
+            ["MetricDisplay"] = metric == "EntitiesByCurrentValue"
+                ? $"{(string.IsNullOrWhiteSpace(settings.EntityPluralName) ? "Registros" : settings.EntityPluralName.Trim())} por valor atual"
+                : $"Valores por {(string.IsNullOrWhiteSpace(settings.PeriodName) ? "período" : settings.PeriodName.Trim().ToLowerInvariant())}",
             ["Unit"] = unit,
             ["Scope"] = scope,
+            ["ScopeDisplay"] = scope switch
+            {
+                "Category" => string.IsNullOrWhiteSpace(settings.CategoryName) ? "Grupo" : settings.CategoryName.Trim(),
+                "Owner" => string.IsNullOrWhiteSpace(settings.OwnerName) ? "Responsável" : settings.OwnerName.Trim(),
+                _ => "Geral"
+            },
             ["Group"] = group,
             ["Period"] = period,
             ["Status"] = statusDisplay == "(vazio)" ? null : statusDisplay,
@@ -805,6 +837,16 @@ internal static class ExcelSectionedMatrixParser
         if (matrix.LastPeriodColumn < matrix.FirstPeriodColumn)
         {
             throw new InvalidOperationException("A última coluna de período não pode ser anterior à primeira.");
+        }
+
+        if (matrix.DataStartRow < 0 || matrix.DataEndRow < 0)
+        {
+            throw new InvalidOperationException("As linhas inicial e final da área monitorada não podem ser negativas.");
+        }
+
+        if (matrix.DataStartRow > 0 && matrix.DataEndRow > 0 && matrix.DataEndRow < matrix.DataStartRow)
+        {
+            throw new InvalidOperationException("A última linha da área monitorada não pode ser anterior à primeira.");
         }
     }
 

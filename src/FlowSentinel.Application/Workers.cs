@@ -97,14 +97,15 @@ public sealed class DeliveryDispatcherWorker : BackgroundService
                         batchSize,
                         stoppingToken);
 
+                    var batches = await BuildDispatchBatchesAsync(deliveries, stoppingToken);
                     await Parallel.ForEachAsync(
-                        deliveries,
+                        batches,
                         new ParallelOptions
                         {
                             MaxDegreeOfParallelism = Math.Clamp(_settings.MaxParallelDeliveries, 1, 64),
                             CancellationToken = stoppingToken
                         },
-                        DispatchAsync);
+                        DispatchBatchAsync);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -120,54 +121,131 @@ public sealed class DeliveryDispatcherWorker : BackgroundService
         }
     }
 
-    private async ValueTask DispatchAsync(DeliveryStoreItem delivery, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<DispatchBatch>> BuildDispatchBatchesAsync(
+        IReadOnlyCollection<DeliveryStoreItem> deliveries,
+        CancellationToken cancellationToken)
     {
+        if (deliveries.Count == 0)
+        {
+            return [];
+        }
+
+        var definitions = new Dictionary<Guid, AutomationDefinition?>();
+        foreach (var automationId in deliveries.Select(x => x.AutomationId).Distinct())
+        {
+            definitions[automationId] = await _store.GetAutomationDefinitionAsync(automationId, cancellationToken);
+        }
+
+        var candidates = deliveries.Select(delivery =>
+        {
+            definitions.TryGetValue(delivery.AutomationId, out var automation);
+            var action = automation?.Actions.FirstOrDefault(x => x.Id == delivery.ActionId);
+            var channelDefinition = action?.Channels.FirstOrDefault(x =>
+                x.ChannelConfigurationId == delivery.ChannelConfigurationId &&
+                x.ChannelType == delivery.ChannelType);
+
+            var mode = delivery.ChannelType == ChannelType.LocalWindows
+                ? NotificationGroupingMode.Individual
+                : channelDefinition?.GroupingMode ?? NotificationGroupingMode.Individual;
+            var entityKey = mode == NotificationGroupingMode.ByEntity
+                ? NotificationBatchComposer.ResolveEntityKey(delivery.Fields, channelDefinition?.GroupField)
+                : string.Empty;
+            if (mode == NotificationGroupingMode.ByEntity && string.IsNullOrWhiteSpace(entityKey))
+            {
+                mode = NotificationGroupingMode.Individual;
+            }
+
+            var groupingKey = mode switch
+            {
+                NotificationGroupingMode.SingleMessage => "summary",
+                NotificationGroupingMode.ByEntity => $"entity:{entityKey}",
+                _ => $"individual:{delivery.Id:N}"
+            };
+
+            return new DispatchCandidate(
+                delivery,
+                automation,
+                channelDefinition,
+                mode,
+                $"{delivery.AutomationId:N}|{delivery.ChannelConfigurationId:N}|{delivery.Recipient.Trim().ToLowerInvariant()}|{mode}|{groupingKey}");
+        }).ToArray();
+
+        return candidates
+            .GroupBy(x => x.GroupKey, StringComparer.Ordinal)
+            .Select(group => new DispatchBatch(
+                group.First().Automation,
+                group.First().ChannelDefinition,
+                group.First().Mode,
+                group.Select(x => x.Delivery).OrderBy(x => x.CreatedAt).ToArray()))
+            .ToArray();
+    }
+
+    private async ValueTask DispatchBatchAsync(DispatchBatch batch, CancellationToken cancellationToken)
+    {
+        var first = batch.Deliveries[0];
         try
         {
-            if (!_channels.TryGetValue(delivery.ChannelType, out var channel))
+            if (!_channels.TryGetValue(first.ChannelType, out var channel))
             {
-                await _store.CompleteDeliveryAsync(
-                    delivery.Id,
-                    DeliveryResult.Failed($"Canal {delivery.ChannelType} não registrado.", transient: false),
-                    null,
+                await CompleteBatchAsync(
+                    batch,
+                    DeliveryResult.Failed($"Canal {first.ChannelType} não registrado.", transient: false),
                     cancellationToken);
                 return;
             }
 
             var configuration = await _store.GetChannelConfigurationAsync(
-                delivery.ChannelConfigurationId,
+                first.ChannelConfigurationId,
                 cancellationToken);
 
-            if (configuration is null || !configuration.Enabled)
+            if (configuration is null || !configuration.Enabled || configuration.Type != first.ChannelType)
             {
-                await _store.CompleteDeliveryAsync(
-                    delivery.Id,
-                    DeliveryResult.Failed("Configuração de canal inexistente ou desabilitada.", transient: false),
-                    null,
+                await CompleteBatchAsync(
+                    batch,
+                    DeliveryResult.Skipped("Canal removido, desabilitado ou incompatível; entrega ignorada sem registrar falha operacional."),
                     cancellationToken);
                 return;
             }
 
+            var automationName = batch.Automation?.Name ?? first.AutomationId.ToString("N");
+            var content = NotificationBatchComposer.Compose(automationName, batch.Mode, batch.Deliveries);
+            var fields = first.Fields.ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase);
+            fields["BatchCount"] = batch.Deliveries.Count.ToString();
+            fields["BatchMode"] = batch.Mode.ToString();
+
             var request = new DeliveryRequest
             {
-                DeliveryId = delivery.Id,
-                OccurrenceId = delivery.OccurrenceId,
-                AutomationName = delivery.AutomationId.ToString("N"),
-                ActionName = delivery.ActionId.ToString("N"),
-                Recipient = delivery.Recipient,
-                Subject = delivery.Subject,
-                Message = delivery.Message,
-                Fields = delivery.Fields
+                DeliveryId = first.Id,
+                OccurrenceId = first.OccurrenceId,
+                AutomationName = automationName,
+                ActionName = batch.Automation?.Actions.FirstOrDefault(x => x.Id == first.ActionId)?.Name ?? first.ActionId.ToString("N"),
+                Recipient = first.Recipient,
+                Subject = content.Subject,
+                Message = content.Message,
+                Fields = fields
             };
 
             var result = await channel.SendAsync(configuration, request, cancellationToken);
-            var nextAttempt = GetNextAttempt(delivery, result);
-            await _store.CompleteDeliveryAsync(delivery.Id, result, nextAttempt, cancellationToken);
+            await CompleteBatchAsync(batch, result, cancellationToken);
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Falha inesperada na entrega {DeliveryId}.", delivery.Id);
-            var result = DeliveryResult.Failed(exception.Message);
+            _logger.LogError(
+                exception,
+                "Falha inesperada no lote de {Count} entrega(s), canal {ChannelType}.",
+                batch.Deliveries.Count,
+                first.ChannelType);
+            await CompleteBatchAsync(batch, DeliveryResult.Failed(exception.Message), cancellationToken);
+        }
+    }
+
+    private async Task CompleteBatchAsync(
+        DispatchBatch batch,
+        DeliveryResult result,
+        CancellationToken cancellationToken)
+    {
+        foreach (var delivery in batch.Deliveries)
+        {
             await _store.CompleteDeliveryAsync(
                 delivery.Id,
                 result,
@@ -178,7 +256,7 @@ public sealed class DeliveryDispatcherWorker : BackgroundService
 
     private static DateTimeOffset? GetNextAttempt(DeliveryStoreItem delivery, DeliveryResult result)
     {
-        if (result.Success || !result.IsTransient)
+        if (result.Success || result.IsSkipped || !result.IsTransient)
         {
             return null;
         }
@@ -191,4 +269,17 @@ public sealed class DeliveryDispatcherWorker : BackgroundService
 
     private static Task DelayAsync(int seconds, CancellationToken cancellationToken) =>
         Task.Delay(TimeSpan.FromSeconds(Math.Clamp(seconds, 1, 3600)), cancellationToken);
+
+    private sealed record DispatchCandidate(
+        DeliveryStoreItem Delivery,
+        AutomationDefinition? Automation,
+        ActionChannelDefinition? ChannelDefinition,
+        NotificationGroupingMode Mode,
+        string GroupKey);
+
+    private sealed record DispatchBatch(
+        AutomationDefinition? Automation,
+        ActionChannelDefinition? ChannelDefinition,
+        NotificationGroupingMode Mode,
+        IReadOnlyList<DeliveryStoreItem> Deliveries);
 }

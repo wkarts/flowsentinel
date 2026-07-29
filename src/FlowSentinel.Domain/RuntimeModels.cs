@@ -52,6 +52,7 @@ public sealed class DeliveryRequest
 public sealed class DeliveryResult
 {
     public required bool Success { get; init; }
+    public bool IsSkipped { get; init; }
     public string? ExternalMessageId { get; init; }
     public string? Error { get; init; }
     public bool IsTransient { get; init; }
@@ -67,6 +68,14 @@ public sealed class DeliveryResult
         Success = false,
         Error = error,
         IsTransient = transient
+    };
+
+    public static DeliveryResult Skipped(string reason) => new()
+    {
+        Success = false,
+        IsSkipped = true,
+        Error = reason,
+        IsTransient = false
     };
 }
 

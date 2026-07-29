@@ -50,12 +50,16 @@ internal sealed class SourceEditorForm : Form
     private readonly NumericUpDown _collaboratorColumn = new();
     private readonly NumericUpDown _firstPeriodColumn = new();
     private readonly NumericUpDown _lastPeriodColumn = new();
+    private readonly NumericUpDown _dataStartRow = new();
+    private readonly NumericUpDown _dataEndRow = new();
     private readonly CheckBox _includeBlankStatuses = new();
     private readonly CheckBox _includeFormatting = new();
     private readonly CheckBox _generateCompanyRecords = new();
     private readonly CheckBox _generateAggregateRecords = new();
+    private readonly CheckBox _aggregateGlobal = new();
     private readonly CheckBox _aggregateBySection = new();
     private readonly CheckBox _aggregateByCollaborator = new();
+    private readonly CheckBox _includeBlankAggregates = new();
     private readonly TextBox _standaloneSectionTitles = new();
     private readonly TextBox _sectionsWithoutPeriods = new();
     private readonly TextBox _currentStatusExcludedPeriods = new();
@@ -161,17 +165,42 @@ internal sealed class SourceEditorForm : Form
         ConfigureColumnSelector(_collaboratorColumn, 4);
         ConfigureColumnSelector(_firstPeriodColumn, 5);
         ConfigureColumnSelector(_lastPeriodColumn, 20);
-        _includeBlankStatuses.Text = "Incluir valores vazios";
-        _includeFormatting.Text = "Monitorar cores e destaques";
+        ConfigureOptionalRowSelector(_dataStartRow);
+        ConfigureOptionalRowSelector(_dataEndRow);
+        _includeBlankStatuses.Text = "Ler valores vazios como estado monitorável";
+        _includeFormatting.Text = "Monitorar alterações de cores e destaques";
         _generateCompanyRecords.Text = "Gerar registro consolidado por entidade";
-        _generateAggregateRecords.Text = "Gerar totais por valor";
-        _aggregateBySection.Text = "Agrupar totais por grupo/categoria";
-        _aggregateByCollaborator.Text = "Agrupar totais por responsável";
-        foreach (var flag in new[] { _includeBlankStatuses, _includeFormatting, _generateCompanyRecords, _generateAggregateRecords, _aggregateBySection, _aggregateByCollaborator })
+        _generateAggregateRecords.Text = "Gerar registros estatísticos agregados";
+        _aggregateGlobal.Text = "Resumo geral";
+        _aggregateBySection.Text = "Resumos por grupo/categoria";
+        _aggregateByCollaborator.Text = "Resumos por responsável";
+        _includeBlankAggregates.Text = "Incluir valores vazios nos resumos";
+
+        foreach (var flag in new[]
+                 {
+                     _includeBlankStatuses,
+                     _includeFormatting,
+                     _generateCompanyRecords,
+                     _generateAggregateRecords,
+                     _aggregateGlobal,
+                     _aggregateBySection,
+                     _aggregateByCollaborator,
+                     _includeBlankAggregates
+                 })
         {
             flag.AutoSize = true;
-            flag.Checked = true;
         }
+
+        _includeBlankStatuses.Checked = true;
+        _generateCompanyRecords.Checked = true;
+        _aggregateGlobal.Checked = true;
+        _includeFormatting.Checked = false;
+        _generateAggregateRecords.Checked = false;
+        _aggregateBySection.Checked = false;
+        _aggregateByCollaborator.Checked = false;
+        _includeBlankAggregates.Checked = false;
+        _generateAggregateRecords.CheckedChanged += (_, _) => UpdateAggregateOptionsState();
+        UpdateAggregateOptionsState();
         _standaloneSectionTitles.Text = string.Empty;
         _sectionsWithoutPeriods.Text = string.Empty;
         _currentStatusExcludedPeriods.Text = string.Empty;
@@ -402,9 +431,9 @@ internal sealed class SourceEditorForm : Form
             AddEditorRow(table, "Padrão para localizar o ano", _worksheetPattern);
         }
 
-        var profileButton = new Button { Text = "Aplicar modelo RP-102 (opcional)", AutoSize = true };
+        var profileButton = new Button { Text = "Aplicar perfil de conferência contábil", AutoSize = true };
         profileButton.Click += (_, _) => ApplyStructuredMatrixExampleProfile();
-        AddEditorRow(table, "Modelo inicial", profileButton);
+        AddEditorRow(table, "Perfil de configuração", profileButton);
         AddEditorRow(table, "Marcador exato do cabeçalho", _headerMarker);
         AddEditorRow(table, "Texto contido no cabeçalho", _headerTextContains);
         AddEditorRow(table, "Rótulos de colunas reservados", _periodLabels);
@@ -417,6 +446,8 @@ internal sealed class SourceEditorForm : Form
         AddEditorRow(table, "Coluna do responsável", _collaboratorColumn);
         AddEditorRow(table, "Primeira coluna monitorada", _firstPeriodColumn);
         AddEditorRow(table, "Última coluna monitorada", _lastPeriodColumn);
+        AddEditorRow(table, "Primeira linha de dados (0 = automática)", _dataStartRow);
+        AddEditorRow(table, "Última linha de dados (0 = até o fim)", _dataEndRow);
         AddEditorRow(table, "Títulos de grupos independentes", _standaloneSectionTitles);
         AddEditorRow(table, "Grupos sem colunas de acompanhamento", _sectionsWithoutPeriods);
         AddEditorRow(table, "Cálculo do valor atual", _currentStatusMode);
@@ -435,13 +466,15 @@ internal sealed class SourceEditorForm : Form
         flags.Controls.Add(_includeFormatting);
         flags.Controls.Add(_generateCompanyRecords);
         flags.Controls.Add(_generateAggregateRecords);
+        flags.Controls.Add(_aggregateGlobal);
         flags.Controls.Add(_aggregateBySection);
         flags.Controls.Add(_aggregateByCollaborator);
+        flags.Controls.Add(_includeBlankAggregates);
         AddEditorRow(table, "Registros gerados", flags);
 
         return WrapWithHelp(
             table,
-            "Este modo é genérico e configurável. Reconhece blocos repetidos, grupos, colunas de acompanhamento, cores e listas especiais. O modelo RP-102 apenas preenche uma configuração inicial e pode ser totalmente alterado.");
+            "Configure somente os registros necessários para as regras da automação. Resumos agregados são recursos analíticos opcionais e permanecem desativados por padrão para evitar notificações repetitivas.");
     }
 
     private Control BuildCsvPanel()
@@ -724,6 +757,11 @@ internal sealed class SourceEditorForm : Form
     private object BuildExcelSettings()
     {
         var matrixMode = _excelMode.SelectedIndex == 1;
+        if (matrixMode && _dataStartRow.Value > 0 && _dataEndRow.Value > 0 && _dataStartRow.Value > _dataEndRow.Value)
+        {
+            throw new InvalidOperationException("A primeira linha de dados não pode ser maior que a última linha de dados.");
+        }
+
         return new
         {
             filePath = Required(_filePath.Text, "Informe o arquivo Excel."),
@@ -753,10 +791,14 @@ internal sealed class SourceEditorForm : Form
                 collaboratorColumn = (int)_collaboratorColumn.Value,
                 firstPeriodColumn = (int)_firstPeriodColumn.Value,
                 lastPeriodColumn = (int)_lastPeriodColumn.Value,
+                dataStartRow = (int)_dataStartRow.Value,
+                dataEndRow = (int)_dataEndRow.Value,
                 includeBlankStatuses = _includeBlankStatuses.Checked,
+                includeBlankValuesInAggregates = _includeBlankAggregates.Checked,
                 includeFormatting = _includeFormatting.Checked,
                 generateCompanyRecords = _generateCompanyRecords.Checked,
                 generateAggregateRecords = _generateAggregateRecords.Checked,
+                aggregateGlobal = _aggregateGlobal.Checked,
                 aggregateBySection = _aggregateBySection.Checked,
                 aggregateByCollaborator = _aggregateByCollaborator.Checked,
                 autoDetectStandaloneSections = true,
@@ -805,12 +847,16 @@ internal sealed class SourceEditorForm : Form
         _collaboratorColumn.Value = 4;
         _firstPeriodColumn.Value = 5;
         _lastPeriodColumn.Value = 20;
+        _dataStartRow.Value = 0;
+        _dataEndRow.Value = 0;
         _includeBlankStatuses.Checked = true;
-        _includeFormatting.Checked = true;
+        _includeFormatting.Checked = false;
         _generateCompanyRecords.Checked = true;
-        _generateAggregateRecords.Checked = true;
-        _aggregateBySection.Checked = true;
-        _aggregateByCollaborator.Checked = true;
+        _generateAggregateRecords.Checked = false;
+        _aggregateGlobal.Checked = true;
+        _aggregateBySection.Checked = false;
+        _aggregateByCollaborator.Checked = false;
+        _includeBlankAggregates.Checked = false;
         _standaloneSectionTitles.Text = "SIMPLES|EMPRESAS MEI|SEM MOVIMENTO";
         _sectionsWithoutPeriods.Text = "EMPRESAS MEI|SEM MOVIMENTO";
         _currentStatusExcludedPeriods.Text = "BAL";
@@ -850,6 +896,22 @@ internal sealed class SourceEditorForm : Form
         return string.Join("|", values.EnumerateObject()
             .Where(x => x.Value.TryGetInt32(out var number) && number is >= 1 and <= 12)
             .Select(x => $"{x.Name}={x.Value.GetInt32()}"));
+    }
+
+    private void UpdateAggregateOptionsState()
+    {
+        var enabled = _generateAggregateRecords.Checked;
+        _aggregateGlobal.Enabled = enabled;
+        _aggregateBySection.Enabled = enabled;
+        _aggregateByCollaborator.Enabled = enabled;
+        _includeBlankAggregates.Enabled = enabled;
+    }
+
+    private static void ConfigureOptionalRowSelector(NumericUpDown control)
+    {
+        control.Minimum = 0;
+        control.Maximum = 100000;
+        control.Value = 0;
     }
 
     private static void ConfigureColumnSelector(NumericUpDown control, int value)
@@ -981,12 +1043,16 @@ internal sealed class SourceEditorForm : Form
                     _collaboratorColumn.Value = Math.Clamp(MatrixInt("collaboratorColumn", 4), 1, 1000);
                     _firstPeriodColumn.Value = Math.Clamp(MatrixInt("firstPeriodColumn", 5), 1, 1000);
                     _lastPeriodColumn.Value = Math.Clamp(MatrixInt("lastPeriodColumn", 20), 1, 1000);
+                    _dataStartRow.Value = Math.Clamp(MatrixInt("dataStartRow", 0), 0, 100000);
+                    _dataEndRow.Value = Math.Clamp(MatrixInt("dataEndRow", 0), 0, 100000);
                     _includeBlankStatuses.Checked = MatrixBool("includeBlankStatuses", true);
-                    _includeFormatting.Checked = MatrixBool("includeFormatting", true);
+                    _includeBlankAggregates.Checked = MatrixBool("includeBlankValuesInAggregates", false);
+                    _includeFormatting.Checked = MatrixBool("includeFormatting", false);
                     _generateCompanyRecords.Checked = MatrixBool("generateCompanyRecords", true);
-                    _generateAggregateRecords.Checked = MatrixBool("generateAggregateRecords", true);
-                    _aggregateBySection.Checked = MatrixBool("aggregateBySection", true);
-                    _aggregateByCollaborator.Checked = MatrixBool("aggregateByCollaborator", true);
+                    _generateAggregateRecords.Checked = MatrixBool("generateAggregateRecords", false);
+                    _aggregateGlobal.Checked = MatrixBool("aggregateGlobal", true);
+                    _aggregateBySection.Checked = MatrixBool("aggregateBySection", false);
+                    _aggregateByCollaborator.Checked = MatrixBool("aggregateByCollaborator", false);
                     _standaloneSectionTitles.Text = MatrixString("standaloneSectionTitles");
                     _sectionsWithoutPeriods.Text = MatrixString("sectionsWithoutPeriods");
                     _currentStatusExcludedPeriods.Text = MatrixString("currentStatusExcludedPeriods");
@@ -1009,6 +1075,7 @@ internal sealed class SourceEditorForm : Form
                                 : property.Value.ToString();
                         }
                     }
+                    UpdateAggregateOptionsState();
                 }
                 break;
             case SourceType.Csv:

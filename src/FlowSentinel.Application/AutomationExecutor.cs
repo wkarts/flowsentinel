@@ -55,6 +55,8 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
 
             automation.Validate();
             var now = DateTimeOffset.Now;
+            var channelConfigurations = (await _store.GetChannelConfigurationsAsync(cancellationToken))
+                .ToDictionary(x => x.Id);
             var sourceResults = await ReadSourcesAsync(automation, cancellationToken);
             var mergedRecords = MergeRecords(automation, sourceResults);
             var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -63,7 +65,7 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 seenKeys.Add(record.Key);
-                await EvaluateRecordAsync(automation, record, now, cancellationToken);
+                await EvaluateRecordAsync(automation, record, channelConfigurations, now, cancellationToken);
             }
 
             await ResolveMissingRecordsAsync(automation, seenKeys, now, cancellationToken);
@@ -164,6 +166,7 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
     private async Task EvaluateRecordAsync(
         AutomationDefinition automation,
         MergedRecord record,
+        IReadOnlyDictionary<Guid, ChannelConfiguration> channelConfigurations,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -197,7 +200,7 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
                 Fingerprint = record.Fingerprint
             };
             await _store.CreateOccurrenceAsync(occurrence, cancellationToken);
-            await ScheduleActionsAsync(automation, occurrence, context, ActionTrigger.OnOpen, now, cancellationToken);
+            await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.OnOpen, now, cancellationToken);
             occurrence.Status = OccurrenceStatus.Active;
             await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
             return;
@@ -213,7 +216,7 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
             occurrence.ResolvedAt = now;
             await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
             await _store.CancelPendingDeliveriesAsync(occurrence.Id, cancellationToken);
-            await ScheduleActionsAsync(automation, occurrence, context, ActionTrigger.OnResolved, now, cancellationToken);
+            await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.OnResolved, now, cancellationToken);
             return;
         }
 
@@ -232,19 +235,20 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
             occurrence.ResolvedAt = now;
             await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
             await _store.CancelPendingDeliveriesAsync(occurrence.Id, cancellationToken);
-            await ScheduleActionsAsync(automation, occurrence, context, ActionTrigger.OnResolved, now, cancellationToken);
+            await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.OnResolved, now, cancellationToken);
             return;
         }
 
         occurrence.Status = OccurrenceStatus.Active;
         await _store.UpdateOccurrenceAsync(occurrence, cancellationToken);
-        await ScheduleActionsAsync(automation, occurrence, context, ActionTrigger.WhileActive, now, cancellationToken);
+        await ScheduleActionsAsync(automation, occurrence, context, channelConfigurations, ActionTrigger.WhileActive, now, cancellationToken);
     }
 
     private async Task ScheduleActionsAsync(
         AutomationDefinition automation,
         OccurrenceStoreItem occurrence,
         EvaluationContext context,
+        IReadOnlyDictionary<Guid, ChannelConfiguration> channelConfigurations,
         ActionTrigger trigger,
         DateTimeOffset now,
         CancellationToken cancellationToken)
@@ -271,14 +275,29 @@ public sealed class AutomationExecutor : IAutomationExecutor, IAutomationControl
                 }
             }
 
-            var dueAt = now.AddSeconds(Math.Max(0, action.DelaySeconds));
             var subject = _templateRenderer.Render(action.SubjectTemplate, context);
             var message = _templateRenderer.Render(action.MessageTemplate, context);
             var deliveries = new List<DeliveryStoreItem>();
 
             foreach (var channel in action.Channels.OrderBy(x => x.Order))
             {
-                var recipients = _recipientResolver.Resolve(automation, action, channel.ChannelType, context);
+                if (!channelConfigurations.TryGetValue(channel.ChannelConfigurationId, out var configuration) ||
+                    !configuration.Enabled ||
+                    configuration.Type != channel.ChannelType)
+                {
+                    _logger.LogDebug(
+                        "Canal {ChannelConfigurationId} ignorado ao agendar a ação {ActionName}: configuração ausente, desabilitada ou incompatível.",
+                        channel.ChannelConfigurationId,
+                        action.Name);
+                    continue;
+                }
+
+                var groupingDelay = channel.ChannelType == ChannelType.LocalWindows ||
+                                    channel.GroupingMode == NotificationGroupingMode.Individual
+                    ? 0
+                    : Math.Max(0, channel.GroupingWindowSeconds);
+                var dueAt = now.AddSeconds(Math.Max(Math.Max(0, action.DelaySeconds), groupingDelay));
+                var recipients = await _recipientResolver.ResolveAsync(automation, action, channel.ChannelType, context, cancellationToken);
                 foreach (var recipient in recipients)
                 {
                     var key = BuildIdempotencyKey(

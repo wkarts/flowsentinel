@@ -90,6 +90,7 @@ public enum RecipientType
 {
     Fixed,
     Field,
+    Contact,
     Group
 }
 
@@ -111,6 +112,19 @@ public enum ChannelExecutionStrategy
     All,
     AtLeastOne,
     FirstSuccessful
+}
+
+public enum NotificationGroupingMode
+{
+    Individual,
+    ByEntity,
+    SingleMessage
+}
+
+public enum ContactAccessScope
+{
+    AllAutomations,
+    SelectedAutomations
 }
 
 public enum ActionSuccessPolicy

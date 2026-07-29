@@ -21,6 +21,7 @@ public static class DependencyInjection
             options.UseSqlite($"Data Source={paths.DatabasePath};Cache=Shared;Pooling=True;Foreign Keys=True");
         });
         services.AddSingleton<IFlowStore, FlowStore>();
+        services.AddSingleton<IContactDirectory, JsonContactDirectory>();
         services.AddSingleton<ISecretProtector, WindowsDpapiSecretProtector>();
         services.TryAddSingleton<ILocalNotificationSink, NullLocalNotificationSink>();
 
