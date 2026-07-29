@@ -13,6 +13,7 @@ internal static class Program
     private static readonly TimeSpan CatalogStartupTimeout = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan HostStartupTimeout = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan MinimumSplashVisibility = TimeSpan.FromMilliseconds(1800);
+    private static readonly TimeSpan SplashProgressRefreshInterval = TimeSpan.FromMilliseconds(250);
 
     [STAThread]
     private static void Main(string[] args)
@@ -270,8 +271,14 @@ internal static class Program
         }
         catch (OperationCanceledException) when (watch.Elapsed >= timeout)
         {
+            cancellation.Cancel();
             throw new TimeoutException(
                 $"A etapa '{stepName}' excedeu o limite de {timeout.TotalSeconds:N0} segundos.");
+        }
+        catch
+        {
+            cancellation.Cancel();
+            throw;
         }
     }
 
@@ -284,19 +291,20 @@ internal static class Program
         Stopwatch? watch = null)
     {
         watch ??= Stopwatch.StartNew();
-        var lastProgressRefresh = TimeSpan.MinValue;
+        TimeSpan? lastProgressRefresh = null;
 
         while (!task.IsCompleted)
         {
             System.Windows.Forms.Application.DoEvents();
 
-            if (watch.Elapsed - lastProgressRefresh >= TimeSpan.FromMilliseconds(250))
+            var elapsed = watch.Elapsed;
+            if (ShouldRefreshSplashProgress(elapsed, lastProgressRefresh))
             {
-                splash?.UpdateElapsed(stepName, watch.Elapsed, timeout);
-                lastProgressRefresh = watch.Elapsed;
+                splash?.UpdateElapsed(stepName, elapsed, timeout);
+                lastProgressRefresh = elapsed;
             }
 
-            if (watch.Elapsed >= timeout)
+            if (elapsed >= timeout)
             {
                 cancellation?.Cancel();
                 throw new TimeoutException(
@@ -309,6 +317,26 @@ internal static class Program
         }
 
         task.GetAwaiter().GetResult();
+    }
+
+    internal static bool ShouldRefreshSplashProgress(TimeSpan elapsed, TimeSpan? lastProgressRefresh)
+    {
+        if (elapsed < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(elapsed));
+        }
+
+        if (lastProgressRefresh is null)
+        {
+            return true;
+        }
+
+        if (lastProgressRefresh.Value < TimeSpan.Zero || lastProgressRefresh.Value > elapsed)
+        {
+            throw new ArgumentOutOfRangeException(nameof(lastProgressRefresh));
+        }
+
+        return elapsed - lastProgressRefresh.Value >= SplashProgressRefreshInterval;
     }
 
     private sealed record StartupSnapshot(

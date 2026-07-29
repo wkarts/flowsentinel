@@ -73,7 +73,7 @@ Na primeira execução é criado o banco em:
 ## Publicação local
 
 ```powershell
-./scripts/publish.ps1 -Version 0.4.3
+./scripts/publish.ps1 -Version 0.4.4
 ```
 
 Os arquivos serão gerados em `artifacts/`.
@@ -90,8 +90,8 @@ Os arquivos serão gerados em `artifacts/`.
 3. Crie e envie a tag:
 
 ```powershell
-git tag v0.4.3
-git push origin v0.4.3
+git tag v0.4.4
+git push origin v0.4.4
 ```
 
 O workflow de release irá:
@@ -158,6 +158,12 @@ Uma única automação pode monitorar toda a planilha. Indicadores agregados sã
 
 Consulte `docs/complex-workbook-monitoring.md`, o exemplo genérico `docs/examples/source-planilha-matriz-generica.json` e o modelo opcional `docs/examples/source-planilha-matriz-contabil.json`.
 
+
+## Correção do temporizador de inicialização
+
+A versão 0.4.4 corrige a falha `TimeSpan overflowed because the duration is too long` introduzida no acompanhamento visual da versão 0.4.3. O splash não utiliza mais `TimeSpan.MinValue` como marcador aritmético: a primeira atualização é tratada explicitamente e as atualizações seguintes continuam ocorrendo a cada 250 ms. A correção não altera o banco, as automações nem os processadores de monitoramento.
+
+Consulte `docs/startup-timespan-overflow-0.4.4.md`.
 
 ## Inicialização e desempenho
 
