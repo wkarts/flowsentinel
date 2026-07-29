@@ -41,6 +41,7 @@ public sealed class ExcelSectionedMatrixParserTests
                 LastPeriodColumn = 9,
                 CurrentStatusExcludedPeriods = "BAL",
                 CurrentStatusMode = "LastFilled",
+                IncludeFormatting = true,
                 GenerateAggregateRecords = true,
                 StatusLabels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                 {

@@ -1,4 +1,4 @@
-# SHA-256 dos arquivos-fonte do FlowSentinel 0.4.1
+# SHA-256 dos arquivos-fonte do FlowSentinel 0.4.2
 
 55ca77912c5150aa3bfecf65b0c27f0384db249b06c5954b9e43edcad8c402df  ./.editorconfig
 bc8e346f626e8a724e7a0f69dc99c31852a76ac15b1dbe5c738a8ee80c49304b  ./.gitattributes
@@ -11,7 +11,7 @@ fd780f246f89c11d5d481cf627781df621fc596fa9368e70db43fe13e3a83010  ./.github/work
 007af06ab65c01ad133f90821259d7a7ec4a6199ca78b3d69e5eb510875d67d4  ./.github/workflows/codeql.yml
 f9753105e48cee625ee8ce9a48d04fcd9b4292f7d72a477be12366912a01d78b  ./.github/workflows/release.yml
 b9510e8e89e708d4112da2293857ff00574f1f271c5180987820f9de9bd2668b  ./.gitignore
-68e66ca4c793aa550afd7172e39dc5f736da4345bc5ee67a589097ae7fd56286  ./CHANGELOG.md
+4dbe213a3ccce17db5203737bff6e02caa676492ce37d3c3920fe58bab31985b  ./CHANGELOG.md
 be65e6d97039e78ef8d23083b06e7ab05b29471a74648f6da6840e6e74df946d  ./CODE_OF_CONDUCT.md
 cb1075ff2e9aeb99ee551d5854cd965243204da787d168405f97dc43b7b51613  ./CONTRIBUTING.md
 18a6264744c45de22297834118411d84419cc09ba08a10c2025d69b370ce2037  ./Directory.Build.props
@@ -29,25 +29,28 @@ ad274609a3262e4c101f735ed20e0879e6df377223fbb7bc1681572fcb632dad  ./docs/example
 9d28da7cfc046487f061a2cc99a29d379b212d27e2ef4b019919c332e07506ec  ./docs/FlowSentinel-0.3.0-PR.md
 1c39cb51969298e8e67bd6c073d537c766b261b9d62e81ee5d9087552994d9d6  ./docs/FlowSentinel-0.4.0-PR.md
 fa10158e07b46f40474b4a50de2f8f12b7bfd5ad421ecd840be19d61689531a2  ./docs/FlowSentinel-0.4.1-PR.md
+1d9ec0d888489d4b99257dca4017fb097648cb8b7790d5148fde48ba5ca43025  ./docs/FlowSentinel-0.4.2-PR.md
+f72c87603fcce1f5b4ba336d259d605c5105239cdc4ec567ece4fa2053990f5f  ./docs/generic-pending-values-0.4.2.md
 7b419381fbeac38380ef0642396115b6d320b6620c03dcab99f68a50c5b034e4  ./docs/github-flow.md
 1f16d7362463ac8c55ab8ad8b20f5d3fca6aae2f86bfb01d8048b7018518d2db  ./docs/pending-monitoring-and-model-compatibility-0.4.1.md
-f5a6489e78cf836dbbc9ea3eb78b4a08b43e5e3211c3f34d75dc7044233f3c07  ./docs/project-tree.txt
+4513145187d031782f5f15452a39fa2bbcbe362ed48562901e6f2e250f6ea073  ./docs/project-tree.txt
 f7c3ca895eccedfa3fd3b9d79cf2816ef39f702f7335466cf8a4b93cc4b518aa  ./docs/release-process.md
 f1ebadde3b9015c60fb3129ffe9054b419651a872fa9b43196ea630d22f967ca  ./docs/runtime-notification-analysis-0.4.0.md
 fada95739e678a855751af5f92cb2c1bdd9f5741fabf9a09b339313471a727e4  ./docs/validation-0.4.0-professional-workbook-assistant.md
 d9f1b2d2c136b7287f8e6b04838e8063d869a5e4db12b0e4e0857a42b5799e8c  ./docs/validation-0.4.1-ci-pending-monitoring.md
+b3fb18bab42da5638fc8f90f93b9f3d9aebcf3812ce327c4e245b53666626c22  ./docs/validation-0.4.2-ci-generic-pending.md
 9232248f99b27c9f47f7b1305c79bfc48fde41ba6b42dd69c36fb688d9f1adee  ./docs/validation-aggregate-settings-scope-fix.md
 ab93550c9a7bba0c92f72321a37767321ed3aa0e62270fe453d372f9194a1381  ./docs/validation-generic-matrix-fix.md
 202d1f539a2067915ea0dcf8dcac7f05f1102183fd5a356ecbf12bbbba9fb050  ./docs/validation.md
 ea51535e1ead17b01032193aa779a140dec417a3782f20f75c26122df1062cd5  ./docs/visual-editor.md
 fb9624fa70636edf13a4c164e5e54b4e40dd82de2b756ebb70185ad130d79d6b  ./docs/workbook-assistant-0.4.0.md
-c8456492b9e06203578230e74e3bf5a44a65a6b8460718333021f104af7f74d6  ./eng/Version.props
+8df2a7a0299b95f4b9d8d9aae67bb40465ec3f716ca68b3a709c6221cc58fcfc  ./eng/Version.props
 056b16055ab7a3d56fd01a4c9850c24eae4e2b1ec0499d88bafee787d212d447  ./FlowSentinel.sln
 1497bda77ac26a91600f9eaa9d733be95a970961816c63738a4aafe1dc9c14e3  ./global.json
-3d8349d4baa0bf874b24ab1eac3c04132895fa1d2763f46d938033130215316f  ./installer/FlowSentinel.Desktop.iss
+810128687b110252b72fe7a6ce0b940d7657ffb68e26bddef5ce2556aef39d8e  ./installer/FlowSentinel.Desktop.iss
 62d0e38c08709a2b47a19f4a5afe897084b9851d33e0d3b37203bbd513440f43  ./LICENSE
 a4ce71b36bc74e1b0dcd4f744b10cf739f1ab91ed8104cde7eb37c50d979acb8  ./NuGet.config
-95d3835c5f911bf558577b11b214308f5c7c1b152f8c7a1d1962a8b322d880c6  ./README.md
+91d9ff6876a851ded6aa4122c0ddb7cc8444b7ecdf2129d1eb37ca6d6ff477cd  ./README.md
 fb4d2ed67106ae38e23c9a198c9a8356cc2fce02cb8dd2bb2f0a17fada46b9c5  ./samples/clientes.csv
 d958179dc81634ea3d5296be024f7419b5c95ee775e73e3f42ba0c28483080b3  ./scripts/bump-version.ps1
 e888f44197a8f50670a74a1ebe037e8ab2f27467b29059cb3c07a62287f46aa8  ./scripts/init-repository.ps1
@@ -55,6 +58,7 @@ cf1be4749a38d662792d3de839877ccaa2601de3775e543a70858e6bf895c3a8  ./scripts/inst
 5e844c88db5997e9acf6e84743f1c809d45c49a1567e6fde54af0cab4a7f3235  ./scripts/publish.ps1
 0f4f410422288f7058d4e7bfffea703924da85575737833204da9b26ead7bd6e  ./scripts/sign-artifacts.ps1
 4422e7d3188e2dafd5d78a1cca19350b0755f9ff13c2e42943cda8ff0826be8d  ./scripts/static-validate-0.4.1.py
+543c6169599e3c184726f349b27a6b5a7281220f4950507642c47a03e949b30c  ./scripts/static-validate-0.4.2.py
 67a3e99686ee5a015455b240a0bfcc6f23ee5cf41b419d165070336de582d359  ./scripts/uninstall-service.ps1
 f092f1d56d2ceccfaaeb7cc3699329177c3400804da41af26cbe2f56aa61a017  ./scripts/validate.ps1
 5298e6b857fda4edb54bc457a45eca14779c6acac5f18002c61bc9efe84015f9  ./SECURITY.md
@@ -150,7 +154,7 @@ f282431d9cecaa736d66e56514204436f0edc46f7d48b3b0bbcfe118bb9cc1c2  ./src/FlowSent
 f006e57ed1a5b38955badb20c52802393287eb620debf7d34d4cd51969b6c0fb  ./tests/FlowSentinel.Application.Tests/GlobalUsings.cs
 330a30025e3316a6759a8eceda59607cbb5ed818cc73da3fe146776412392123  ./tests/FlowSentinel.Application.Tests/NotificationBatchComposerTests.cs
 4c8b9052d6b74b15d30b60affc9e54bc14724f02096b607e6870a3341ff156db  ./tests/FlowSentinel.Application.Tests/RecipientResolverTests.cs
-b88e9ea4254fa3e3f8e64e49d070f9df56881910013958548857fe86f7368f5f  ./tests/FlowSentinel.Application.Tests/RuleEngineTests.cs
+77e27a8c42b28f0a89bee3d81f0f1ee6fb6b59cccc20aa4c9192e4db330f2b3a  ./tests/FlowSentinel.Application.Tests/RuleEngineTests.cs
 f2a399024bac546dd1994764c9e9a1084be2b73a549b8fcbc1db582171f4f9ad  ./tests/FlowSentinel.Application.Tests/TemplateRendererTests.cs
 72407c9051b4245597ccde6805ecbeb09a9bd97c3c05b4b761594611f650e419  ./tests/FlowSentinel.Desktop.Tests/DesktopSettingsTests.cs
 eb4f4a5cbb1b98a1f98cb855d8cde1dbe99cd43756a57de058f1116d34f2dfe1  ./tests/FlowSentinel.Desktop.Tests/FlowSentinel.Desktop.Tests.csproj
@@ -160,7 +164,7 @@ f006e57ed1a5b38955badb20c52802393287eb620debf7d34d4cd51969b6c0fb  ./tests/FlowSe
 894a9321857ac454489237a6effb4066135774c297bd1e1c6f7c00bee53ef01c  ./tests/FlowSentinel.Domain.Tests/FlowSentinel.Domain.Tests.csproj
 f006e57ed1a5b38955badb20c52802393287eb620debf7d34d4cd51969b6c0fb  ./tests/FlowSentinel.Domain.Tests/GlobalUsings.cs
 a34c80cfffca00255ef1964274e49339fadfc8f8751e531b66ebe150b76ae7d9  ./tests/FlowSentinel.Infrastructure.Tests/AutomationExecutorPendingTests.cs
-231a82ecc29c01cc22baa3023576c6289c23e1c4d20a26389b9d04a0a0b6da06  ./tests/FlowSentinel.Infrastructure.Tests/ExcelSectionedMatrixParserTests.cs
+8e15f5781f84cba22316ea6a11f79d622269c359bd651cecd5cec36e83e4c6b0  ./tests/FlowSentinel.Infrastructure.Tests/ExcelSectionedMatrixParserTests.cs
 7405744e30217fea1a26cc7bcf0b55edb781ef0f798227bf3ebc159cdce68bbd  ./tests/FlowSentinel.Infrastructure.Tests/FlowSentinel.Infrastructure.Tests.csproj
 4a192b7ad3c82560cb7d2b99fac03fbb88b75f24d942d7abb0f959d497406583  ./tests/FlowSentinel.Infrastructure.Tests/FlowStoreSqliteTests.cs
 f006e57ed1a5b38955badb20c52802393287eb620debf7d34d4cd51969b6c0fb  ./tests/FlowSentinel.Infrastructure.Tests/GlobalUsings.cs

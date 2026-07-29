@@ -73,7 +73,7 @@ Na primeira execução é criado o banco em:
 ## Publicação local
 
 ```powershell
-./scripts/publish.ps1 -Version 0.4.1
+./scripts/publish.ps1 -Version 0.4.2
 ```
 
 Os arquivos serão gerados em `artifacts/`.
@@ -90,8 +90,8 @@ Os arquivos serão gerados em `artifacts/`.
 3. Crie e envie a tag:
 
 ```powershell
-git tag v0.4.1
-git push origin v0.4.1
+git tag v0.4.2
+git push origin v0.4.2
 ```
 
 O workflow de release irá:
@@ -161,20 +161,20 @@ Consulte `docs/complex-workbook-monitoring.md`, o exemplo genérico `docs/exampl
 
 ## Monitoramento recorrente de pendências
 
-A versão 0.4.1 mantém os eventos de mudança existentes e acrescenta um ciclo de ação persistente para situações em que o valor esperado ainda não foi alcançado. No assistente de planilhas, a opção **Lembrar enquanto uma pendência continuar sem solução** permite informar:
+A versão 0.4.2 mantém os eventos de mudança existentes e acrescenta um ciclo de ação persistente para situações em que o valor esperado ainda não foi alcançado. No assistente de planilhas, a opção **Lembrar enquanto uma pendência continuar sem solução** permite informar:
 
-- valores que iniciam a pendência, como `P`, `PENDENTE` ou `AGUARDANDO`;
-- valores esperados que encerram o ciclo, como `X`, `CONCLUÍDO` ou `RESOLVIDO`;
+- valores que iniciam a pendência, como `P`, `7`, `PENDENTE`, `AGUARDANDO DOCUMENTAÇÃO` ou qualquer outra letra, número, palavra ou frase;
+- valores esperados que encerram o ciclo, como `X`, `9`, `CONCLUÍDO`, `DOCUMENTAÇÃO APROVADA` ou qualquer valor configurado;
 - intervalo em minutos, horas ou dias;
 - quantidade máxima de notificações, usando zero para repetição ilimitada;
 - dias da semana e janela de horário permitida;
 - canais, destinatários e política de agrupamento já existentes.
 
-Cada ação recorrente possui condições separadas de ativação, permanência e conclusão. Quando a conclusão é atendida, novos envios são interrompidos e entregas ainda pendentes daquela ação são canceladas. Se a pendência surgir novamente, um novo episódio é iniciado com contagem própria, sem colidir com as chaves de idempotência do episódio anterior.
+Cada ação recorrente possui condições separadas de ativação, permanência e conclusão. Os valores são tratados como dados configuráveis, sem dependência das letras `P` e `X`. A comparação exata ignora diferenças entre maiúsculas e minúsculas e remove espaços nas extremidades; no editor avançado também podem ser usados operadores numéricos, texto parcial e expressão regular. Quando a conclusão é atendida, novos envios são interrompidos e entregas ainda pendentes daquela ação são canceladas. Se a pendência surgir novamente, um novo episódio é iniciado com contagem própria, sem colidir com as chaves de idempotência do episódio anterior.
 
 O editor avançado de ações oferece as mesmas capacidades para qualquer fonte, não apenas planilhas. As automações antigas continuam válidas porque os novos campos possuem valores padrão compatíveis. O SQLite mantém o estado dos episódios, o resumo de cada execução, as alterações de registros e todo o histórico de entregas.
 
-Consulte `docs/pending-monitoring-and-model-compatibility-0.4.1.md`.
+Consulte `docs/pending-monitoring-and-model-compatibility-0.4.1.md` e `docs/generic-pending-values-0.4.2.md`.
 
 ## Contatos e grupos reutilizáveis
 

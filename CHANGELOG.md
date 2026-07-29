@@ -6,6 +6,19 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 
 ## [Não publicado]
 
+## [0.4.2] - 2026-07-29
+
+### Corrigido
+
+- Corrigido o teste `DeveTransformarPlanilhaComBlocosEmEmpresasSituacoesETotais`, que validava destaque visual sem habilitar explicitamente `IncludeFormatting`; o comportamento de produção permanece opt-in e não foi alterado.
+- Mantida a política segura da 0.4.x: formatação e agregações somente são processadas quando configuradas.
+
+### Validado
+
+- Adicionado teste de regressão confirmando que pendências recorrentes aceitam letra, número, palavra ou frase, como `A`, `7`, `AGUARDANDO DOCUMENTAÇÃO` e `Em análise`.
+- Confirmado que `P` e `X` são apenas valores iniciais do assistente, não códigos fixos do motor.
+- Preservada a compatibilidade das automações 0.3.0, 0.4.0 e 0.4.1.
+
 ## [0.4.1] - 2026-07-29
 
 ### Corrigido
