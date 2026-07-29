@@ -74,7 +74,9 @@ public interface IFlowStore
     Task<IReadOnlyCollection<OccurrenceStoreItem>> GetOpenOccurrencesAsync(Guid automationId, CancellationToken cancellationToken);
     Task CreateOccurrenceAsync(OccurrenceStoreItem occurrence, CancellationToken cancellationToken);
     Task UpdateOccurrenceAsync(OccurrenceStoreItem occurrence, CancellationToken cancellationToken);
+    Task MarkOpenOccurrencesEvaluatedAsync(Guid automationId, DateTimeOffset evaluatedAt, CancellationToken cancellationToken);
 
+    Task<IReadOnlyCollection<ActionRuntimeStateStoreItem>> GetActionScheduleStatesAsync(Guid automationId, CancellationToken cancellationToken);
     Task<ActionScheduleState> GetActionScheduleStateAsync(Guid occurrenceId, Guid actionId, CancellationToken cancellationToken);
     Task<ActionScheduleState> UpdateActionConditionStateAsync(
         Guid occurrenceId,

@@ -9,7 +9,8 @@ namespace FlowSentinel.Infrastructure.Persistence;
 
 internal sealed class FlowStore : IFlowStore
 {
-    private const int CurrentStorageVersion = 5;
+    private const int CurrentStorageVersion = 6;
+    private static readonly TimeSpan OccurrenceHeartbeatInterval = TimeSpan.FromMinutes(5);
 
     public static readonly Guid LocalChannelId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
@@ -43,10 +44,10 @@ internal sealed class FlowStore : IFlowStore
             }
 
             await using var context = await _factory.CreateDbContextAsync(cancellationToken);
+            await context.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=15000;", cancellationToken);
             await context.Database.EnsureCreatedAsync(cancellationToken);
             await EnsureAdditiveSchemaAsync(context, cancellationToken);
             await context.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;", cancellationToken);
-            await context.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000;", cancellationToken);
             await NormalizeStoredDateTimesAsync(context, cancellationToken);
             await SeedAsync(context, cancellationToken);
             _initialized = true;
@@ -299,6 +300,66 @@ internal sealed class FlowStore : IFlowStore
         entity.SnapshotJson = JsonSerializer.Serialize(occurrence.Snapshot, FlowJson.Options);
         entity.Fingerprint = occurrence.Fingerprint;
         await context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task MarkOpenOccurrencesEvaluatedAsync(
+        Guid automationId,
+        DateTimeOffset evaluatedAt,
+        CancellationToken cancellationToken)
+    {
+        await InitializeAsync(cancellationToken);
+        await using var context = await _factory.CreateDbContextAsync(cancellationToken);
+        var evaluatedAtUtc = evaluatedAt.UtcDateTime;
+        var staleBeforeUtc = evaluatedAtUtc.Subtract(OccurrenceHeartbeatInterval);
+        await context.Occurrences
+            .Where(entity =>
+                entity.AutomationId == automationId &&
+                entity.LastEvaluatedAt < staleBeforeUtc &&
+                (entity.Status == OccurrenceStatus.New ||
+                 entity.Status == OccurrenceStatus.Active ||
+                 entity.Status == OccurrenceStatus.Suspended))
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(entity => entity.LastEvaluatedAt, evaluatedAtUtc),
+                cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<ActionRuntimeStateStoreItem>> GetActionScheduleStatesAsync(
+        Guid automationId,
+        CancellationToken cancellationToken)
+    {
+        await InitializeAsync(cancellationToken);
+        await using var context = await _factory.CreateDbContextAsync(cancellationToken);
+        var items = await (
+                from state in context.ActionRuntimeStates.AsNoTracking()
+                join occurrence in context.Occurrences.AsNoTracking()
+                    on state.OccurrenceId equals occurrence.Id
+                where occurrence.AutomationId == automationId &&
+                      (occurrence.Status == OccurrenceStatus.New ||
+                       occurrence.Status == OccurrenceStatus.Active ||
+                       occurrence.Status == OccurrenceStatus.Suspended)
+                select new
+                {
+                    state.OccurrenceId,
+                    state.ActionId,
+                    state.ExecutionCount,
+                    state.LastScheduledAt,
+                    state.ConditionActive,
+                    state.EpisodeNumber
+                })
+            .ToArrayAsync(cancellationToken);
+
+        return items.Select(item => new ActionRuntimeStateStoreItem
+        {
+            OccurrenceId = item.OccurrenceId,
+            ActionId = item.ActionId,
+            State = new ActionScheduleState
+            {
+                ExecutionCount = item.ExecutionCount,
+                LastScheduledAt = ToDateTimeOffset(item.LastScheduledAt),
+                ConditionActive = item.ConditionActive,
+                EpisodeNumber = item.EpisodeNumber
+            }
+        }).ToArray();
     }
 
     public async Task<ActionScheduleState> GetActionScheduleStateAsync(
@@ -723,106 +784,16 @@ internal sealed class FlowStore : IFlowStore
                 return;
             }
 
+            // Bancos antigos podiam conter datas com deslocamento explícito. A normalização
+            // é feita em SQL e somente nas linhas que realmente possuem sufixo de fuso,
+            // evitando carregar e regravar milhares de ocorrências e entregas no startup.
+            await NormalizeLegacyDateTimeColumnsAsync(context, cancellationToken);
+
             var disabledLegacyAggregateActionIds = new HashSet<Guid>();
             var automations = await context.Automations.ToArrayAsync(cancellationToken);
             foreach (var entity in automations)
             {
                 UpgradeLegacyWorkbookDefinition(entity, disabledLegacyAggregateActionIds);
-                entity.LastRunAt = NormalizeUtc(entity.LastRunAt);
-                entity.NextRunAt = NormalizeUtc(entity.NextRunAt);
-                entity.CreatedAt = NormalizeUtc(entity.CreatedAt);
-                entity.UpdatedAt = NormalizeUtc(entity.UpdatedAt);
-
-                context.Entry(entity).Property(x => x.LastRunAt).IsModified = true;
-                context.Entry(entity).Property(x => x.NextRunAt).IsModified = true;
-                context.Entry(entity).Property(x => x.CreatedAt).IsModified = true;
-                context.Entry(entity).Property(x => x.UpdatedAt).IsModified = true;
-            }
-
-            var occurrences = await context.Occurrences.ToArrayAsync(cancellationToken);
-            foreach (var entity in occurrences)
-            {
-                entity.OpenedAt = NormalizeUtc(entity.OpenedAt);
-                entity.LastEvaluatedAt = NormalizeUtc(entity.LastEvaluatedAt);
-                entity.ResolvedAt = NormalizeUtc(entity.ResolvedAt);
-
-                context.Entry(entity).Property(x => x.OpenedAt).IsModified = true;
-                context.Entry(entity).Property(x => x.LastEvaluatedAt).IsModified = true;
-                context.Entry(entity).Property(x => x.ResolvedAt).IsModified = true;
-            }
-
-            var runtimeStates = await context.ActionRuntimeStates.ToArrayAsync(cancellationToken);
-            foreach (var entity in runtimeStates)
-            {
-                entity.LastScheduledAt = NormalizeUtc(entity.LastScheduledAt);
-                entity.LastEvaluatedAt = NormalizeUtc(entity.LastEvaluatedAt);
-                context.Entry(entity).Property(x => x.LastScheduledAt).IsModified = true;
-                context.Entry(entity).Property(x => x.LastEvaluatedAt).IsModified = true;
-            }
-
-            var executionHistory = await context.AutomationExecutionHistory.ToArrayAsync(cancellationToken);
-            foreach (var entity in executionHistory)
-            {
-                entity.StartedAt = NormalizeUtc(entity.StartedAt);
-                entity.CompletedAt = NormalizeUtc(entity.CompletedAt);
-                context.Entry(entity).Property(x => x.StartedAt).IsModified = true;
-                context.Entry(entity).Property(x => x.CompletedAt).IsModified = true;
-            }
-
-            var changeHistory = await context.RecordChangeHistory.ToArrayAsync(cancellationToken);
-            foreach (var entity in changeHistory)
-            {
-                entity.DetectedAt = NormalizeUtc(entity.DetectedAt);
-                context.Entry(entity).Property(x => x.DetectedAt).IsModified = true;
-            }
-
-            var channels = await context.ChannelConfigurations.ToArrayAsync(cancellationToken);
-            var enabledChannelIds = channels
-                .Where(x => x.Enabled)
-                .Select(x => x.Id)
-                .ToHashSet();
-
-            var deliveries = await context.Deliveries.ToArrayAsync(cancellationToken);
-            foreach (var entity in deliveries)
-            {
-                entity.CreatedAt = NormalizeUtc(entity.CreatedAt);
-                entity.DueAt = NormalizeUtc(entity.DueAt);
-                entity.SentAt = NormalizeUtc(entity.SentAt);
-
-                context.Entry(entity).Property(x => x.CreatedAt).IsModified = true;
-                context.Entry(entity).Property(x => x.DueAt).IsModified = true;
-                context.Entry(entity).Property(x => x.SentAt).IsModified = true;
-
-                if (disabledLegacyAggregateActionIds.Contains(entity.ActionId) &&
-                    (entity.Status == DeliveryStatus.Pending ||
-                     entity.Status == DeliveryStatus.RetryScheduled ||
-                     entity.Status == DeliveryStatus.Processing))
-                {
-                    entity.Status = DeliveryStatus.Cancelled;
-                    entity.LastError = "Entrega cancelada pela atualização do assistente de planilhas: indicadores legados foram desativados.";
-                    context.Entry(entity).Property(x => x.Status).IsModified = true;
-                    context.Entry(entity).Property(x => x.LastError).IsModified = true;
-                }
-                else if (!enabledChannelIds.Contains(entity.ChannelConfigurationId) &&
-                         (entity.Status == DeliveryStatus.Pending ||
-                          entity.Status == DeliveryStatus.RetryScheduled ||
-                          entity.Status == DeliveryStatus.Processing ||
-                          entity.Status == DeliveryStatus.Failed))
-                {
-                    entity.Status = DeliveryStatus.Skipped;
-                    entity.LastError = "Canal removido ou desabilitado; entrega ignorada pela atualização sem registrar falha operacional.";
-                    context.Entry(entity).Property(x => x.Status).IsModified = true;
-                    context.Entry(entity).Property(x => x.LastError).IsModified = true;
-                }
-            }
-
-            foreach (var entity in channels)
-            {
-                entity.CreatedAt = NormalizeUtc(entity.CreatedAt);
-                entity.UpdatedAt = NormalizeUtc(entity.UpdatedAt);
-
-                context.Entry(entity).Property(x => x.CreatedAt).IsModified = true;
-                context.Entry(entity).Property(x => x.UpdatedAt).IsModified = true;
             }
 
             if (context.ChangeTracker.HasChanges())
@@ -830,11 +801,61 @@ internal sealed class FlowStore : IFlowStore
                 await context.SaveChangesAsync(cancellationToken);
             }
 
+            // A versão 0.4.1/0.4.2 criava um estado inativo para cada ação e registro,
+            // mesmo quando nenhuma condição havia sido atendida. Esses estados vazios não
+            // carregam histórico útil e podem ser recriados sob demanda. A limpeza evita
+            // carregar milhares de linhas redundantes a cada ciclo do agendador.
+            await context.ActionRuntimeStates
+                .Where(entity =>
+                    !entity.ConditionActive &&
+                    entity.ExecutionCount == 0 &&
+                    entity.EpisodeNumber == 0 &&
+                    entity.LastScheduledAt == null)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            if (disabledLegacyAggregateActionIds.Count > 0)
+            {
+                await context.Deliveries
+                    .Where(entity =>
+                        disabledLegacyAggregateActionIds.Contains(entity.ActionId) &&
+                        (entity.Status == DeliveryStatus.Pending ||
+                         entity.Status == DeliveryStatus.RetryScheduled ||
+                         entity.Status == DeliveryStatus.Processing))
+                    .ExecuteUpdateAsync(
+                        setters => setters
+                            .SetProperty(entity => entity.Status, DeliveryStatus.Cancelled)
+                            .SetProperty(
+                                entity => entity.LastError,
+                                "Entrega cancelada pela atualização do assistente de planilhas: indicadores legados foram desativados."),
+                        cancellationToken);
+            }
+
+            var enabledChannelIds = await context.ChannelConfigurations
+                .AsNoTracking()
+                .Where(entity => entity.Enabled)
+                .Select(entity => entity.Id)
+                .ToArrayAsync(cancellationToken);
+
+            await context.Deliveries
+                .Where(entity =>
+                    !enabledChannelIds.Contains(entity.ChannelConfigurationId) &&
+                    (entity.Status == DeliveryStatus.Pending ||
+                     entity.Status == DeliveryStatus.RetryScheduled ||
+                     entity.Status == DeliveryStatus.Processing ||
+                     entity.Status == DeliveryStatus.Failed))
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(entity => entity.Status, DeliveryStatus.Skipped)
+                        .SetProperty(
+                            entity => entity.LastError,
+                            "Canal removido ou desabilitado; entrega ignorada pela atualização sem registrar falha operacional."),
+                    cancellationToken);
+
             command.CommandText = $"PRAGMA user_version = {CurrentStorageVersion};";
             await command.ExecuteNonQueryAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Persistência SQLite atualizada para a versão {StorageVersion}, com datas normalizadas em UTC.",
+                "Persistência SQLite atualizada para a versão {StorageVersion} por migração incremental otimizada.",
                 CurrentStorageVersion);
         }
         finally
@@ -843,6 +864,49 @@ internal sealed class FlowStore : IFlowStore
             {
                 await connection.CloseAsync();
             }
+        }
+    }
+
+    private static async Task NormalizeLegacyDateTimeColumnsAsync(
+        FlowSentinelDbContext context,
+        CancellationToken cancellationToken)
+    {
+        (string Table, string Column)[] columns =
+        [
+            ("automations", "LastRunAt"),
+            ("automations", "NextRunAt"),
+            ("automations", "CreatedAt"),
+            ("automations", "UpdatedAt"),
+            ("occurrences", "OpenedAt"),
+            ("occurrences", "LastEvaluatedAt"),
+            ("occurrences", "ResolvedAt"),
+            ("deliveries", "CreatedAt"),
+            ("deliveries", "DueAt"),
+            ("deliveries", "SentAt"),
+            ("channel_configurations", "CreatedAt"),
+            ("channel_configurations", "UpdatedAt"),
+            ("action_runtime_states", "LastScheduledAt"),
+            ("action_runtime_states", "LastEvaluatedAt"),
+            ("automation_execution_history", "StartedAt"),
+            ("automation_execution_history", "CompletedAt"),
+            ("record_change_history", "DetectedAt")
+        ];
+
+        foreach (var (table, column) in columns)
+        {
+            await context.Database.ExecuteSqlRawAsync(
+                $"""
+                UPDATE "{table}"
+                SET "{column}" = strftime('%Y-%m-%d %H:%M:%f', "{column}")
+                WHERE "{column}" IS NOT NULL
+                  AND (
+                        (length("{column}") >= 6
+                         AND substr("{column}", -6, 1) IN ('+', '-')
+                         AND substr("{column}", -3, 1) = ':')
+                        OR substr("{column}", -1, 1) IN ('Z', 'z')
+                      );
+                """,
+                cancellationToken);
         }
     }
 
@@ -1099,19 +1163,6 @@ internal sealed class FlowStore : IFlowStore
         NextRunAt = ToDateTimeOffset(entity.NextRunAt),
         LastError = entity.LastError
     };
-
-    private static DateTime NormalizeUtc(DateTime value) =>
-        value.Kind switch
-        {
-            DateTimeKind.Utc => value,
-            DateTimeKind.Local => value.ToUniversalTime(),
-            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
-        };
-
-    private static DateTime? NormalizeUtc(DateTime? value) =>
-        value.HasValue
-            ? NormalizeUtc(value.Value)
-            : null;
 
     private static DateTime? ToUtcDateTime(DateTimeOffset? value) =>
         value?.UtcDateTime;

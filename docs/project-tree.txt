@@ -1,4 +1,4 @@
-FlowSentinel 0.4.2 - Árvore do projeto
+FlowSentinel 0.4.3 - Árvore do projeto
 
 .editorconfig
 .gitattributes
@@ -30,15 +30,18 @@ docs/FlowSentinel-0.3.0-PR.md
 docs/FlowSentinel-0.4.0-PR.md
 docs/FlowSentinel-0.4.1-PR.md
 docs/FlowSentinel-0.4.2-PR.md
+docs/FlowSentinel-0.4.3-PR.md
 docs/generic-pending-values-0.4.2.md
 docs/github-flow.md
 docs/pending-monitoring-and-model-compatibility-0.4.1.md
 docs/project-tree.txt
 docs/release-process.md
 docs/runtime-notification-analysis-0.4.0.md
+docs/startup-performance-0.4.3.md
 docs/validation-0.4.0-professional-workbook-assistant.md
 docs/validation-0.4.1-ci-pending-monitoring.md
 docs/validation-0.4.2-ci-generic-pending.md
+docs/validation-0.4.3-startup-performance.md
 docs/validation-aggregate-settings-scope-fix.md
 docs/validation-generic-matrix-fix.md
 docs/validation.md
@@ -59,6 +62,7 @@ scripts/publish.ps1
 scripts/sign-artifacts.ps1
 scripts/static-validate-0.4.1.py
 scripts/static-validate-0.4.2.py
+scripts/static-validate-0.4.3.py
 scripts/uninstall-service.ps1
 scripts/validate.ps1
 SECURITY.md
@@ -89,6 +93,7 @@ src/FlowSentinel.Desktop/Assets/WWSoftwaresDeveloperLogo-512.png
 src/FlowSentinel.Desktop/Assets/WWSoftwaresDeveloperLogo-64.png
 src/FlowSentinel.Desktop/Assets/WWSoftwaresDeveloperLogo.ico
 src/FlowSentinel.Desktop/Assets/WWSoftwaresDeveloperLogo.png
+src/FlowSentinel.Desktop/Assets/WWSoftwaresDeveloperLogoWhite.png
 src/FlowSentinel.Desktop/AutomationJsonEditorForm.cs
 src/FlowSentinel.Desktop/AutomationWizardForm.cs
 src/FlowSentinel.Desktop/ChannelEditorForm.cs

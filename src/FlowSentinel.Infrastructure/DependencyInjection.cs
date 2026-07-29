@@ -18,7 +18,7 @@ public static class DependencyInjection
         services.AddSingleton(paths);
         services.AddDbContextFactory<FlowSentinelDbContext>(options =>
         {
-            options.UseSqlite($"Data Source={paths.DatabasePath};Cache=Shared;Pooling=True;Foreign Keys=True");
+            options.UseSqlite($"Data Source={paths.DatabasePath};Cache=Shared;Pooling=True;Foreign Keys=True;Default Timeout=15");
         });
         services.AddSingleton<IFlowStore, FlowStore>();
         services.AddSingleton<IContactDirectory, JsonContactDirectory>();

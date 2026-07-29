@@ -57,6 +57,13 @@ public sealed class ActionScheduleState
     public int EpisodeNumber { get; init; }
 }
 
+public sealed class ActionRuntimeStateStoreItem
+{
+    public Guid OccurrenceId { get; init; }
+    public Guid ActionId { get; init; }
+    public required ActionScheduleState State { get; init; }
+}
+
 public sealed class AutomationExecutionHistoryItem
 {
     public Guid Id { get; init; } = Guid.NewGuid();

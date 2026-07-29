@@ -6,6 +6,33 @@ O formato segue Keep a Changelog e o projeto utiliza versionamento semântico.
 
 ## [Não publicado]
 
+## [0.4.3] - 2026-07-29
+
+### Corrigido
+
+- Corrigido o bloqueio do Desktop durante o splash, mantendo criação e message loop do WinForms na mesma thread STA.
+- A inicialização do banco, dos catálogos e do host passa a possuir acompanhamento visual e limites de tempo, evitando espera indefinida.
+- Removida a corrida entre a migração explícita do banco e os serviços em segundo plano.
+- Aplicado timeout de espera de 15 segundos a todas as conexões SQLite para tratar contenção transitória sem falha imediata.
+- Corrigida a baixa visibilidade da marca no painel escuro do splash com um ativo branco dedicado.
+- Eliminadas consultas e gravações SQLite por registro e por ação nos ciclos sem mudanças.
+- Reduzida a atualização massiva de `LastEvaluatedAt` para uma janela consolidada de cinco minutos.
+- Removidos, durante a migração, somente estados de ação inativos e sem histórico produzidos pelas versões 0.4.1/0.4.2.
+- Filtrados logs informativos do Entity Framework e do `HttpClient`, mantendo avisos e erros e reduzindo contenção de disco.
+
+### Desempenho
+
+- Ocorrências abertas e estados das ações são carregados uma única vez por execução da automação.
+- Registros sem alteração deixam de produzir `UPDATE` individual no banco.
+- A migração de datas antigas passa a usar SQL em lote somente nas linhas com fuso explícito.
+- Agendador e processador de entregas aguardam dois segundos após a abertura para permitir que a interface seja exibida antes da carga de trabalho.
+
+### Compatibilidade
+
+- Nenhuma automação, ocorrência, entrega, contato, grupo, modelo ou regra de pendência é removida.
+- Não é necessário excluir ou recriar o banco existente.
+- Permanecem compatíveis as automações das versões 0.3.0 a 0.4.2.
+
 ## [0.4.2] - 2026-07-29
 
 ### Corrigido

@@ -9,6 +9,11 @@ namespace FlowSentinel.Desktop;
 
 internal static class Program
 {
+    private static readonly TimeSpan DatabaseStartupTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan CatalogStartupTimeout = TimeSpan.FromSeconds(45);
+    private static readonly TimeSpan HostStartupTimeout = TimeSpan.FromSeconds(45);
+    private static readonly TimeSpan MinimumSplashVisibility = TimeSpan.FromMilliseconds(1800);
+
     [STAThread]
     private static void Main(string[] args)
     {
@@ -17,7 +22,7 @@ internal static class Program
             HandleUnexpectedException(eventArgs.Exception);
 
         ApplicationConfiguration.Initialize();
-        RunAsync(args).GetAwaiter().GetResult();
+        Run(args);
     }
 
     private static void HandleUnexpectedException(Exception exception)
@@ -43,7 +48,7 @@ internal static class Program
             MessageBoxIcon.Error);
     }
 
-    private static async Task RunAsync(string[] args)
+    private static void Run(string[] args)
     {
         using var instance = new SingleInstanceGuard("Local\\FlowSentinel.Desktop");
         if (!instance.IsOwner)
@@ -82,7 +87,10 @@ internal static class Program
         {
             splash = new SplashForm();
             splash.Show();
-            splash.UpdateStatus("Carregando preferências locais", 10, "Validando diretórios, inicialização automática e parâmetros do Desktop.");
+            splash.UpdateStatus(
+                "Carregando preferências locais",
+                10,
+                "Validando diretórios, inicialização automática e parâmetros do Desktop.");
         }
 
         var builder = Host.CreateApplicationBuilder(args);
@@ -102,54 +110,96 @@ internal static class Program
         builder.Services.AddSingleton<MainForm>();
         builder.Services.AddSingleton<TrayApplicationContext>();
 
-        splash?.UpdateStatus("Montando os serviços da aplicação", 30, "Registrando banco local, leitores de fontes, regras, canais e processadores em segundo plano.");
+        splash?.UpdateStatus(
+            "Montando os serviços da aplicação",
+            30,
+            "Registrando banco local, leitores de fontes, regras, canais e processadores em segundo plano.");
 
         using var host = builder.Build();
+        var startupLogger = host.Services.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("FlowSentinel.Desktop.Startup");
+        var hostStarted = false;
+
         try
         {
-            splash?.UpdateStatus("Iniciando os processadores", 50, "Ativando o agendador de automações e a fila de notificações.");
-            await host.StartAsync();
+            RunStartupStep(
+                splash,
+                startupLogger,
+                "Verificando o banco local",
+                58,
+                "Inicializando a estrutura de dados e aplicando atualizações incrementais sem apagar o histórico.",
+                DatabaseStartupTimeout,
+                cancellationToken => host.Services
+                    .GetRequiredService<IFlowStore>()
+                    .InitializeAsync(cancellationToken));
 
-            splash?.UpdateStatus("Verificando o banco local", 68, "Inicializando a estrutura de dados e validando a compatibilidade do armazenamento.");
-            var store = host.Services.GetRequiredService<IFlowStore>();
-            await store.InitializeAsync(CancellationToken.None);
-
-            splash?.UpdateStatus("Carregando automações e canais", 80, "Lendo configurações, automações ativas e canais disponíveis.");
-            var automations = await store.GetAutomationsAsync(CancellationToken.None);
-            var channels = await store.GetChannelConfigurationsAsync(CancellationToken.None);
-
-            splash?.UpdateStatus("Carregando contatos e grupos", 89, "Validando o catálogo reutilizável de destinatários e suas permissões.");
-            var contactDirectory = host.Services.GetRequiredService<IContactDirectory>();
-            var contacts = await contactDirectory.GetSnapshotAsync(CancellationToken.None);
+            var snapshot = RunStartupStep(
+                splash,
+                startupLogger,
+                "Carregando automações, canais e contatos",
+                78,
+                "Lendo somente os dados necessários para preparar a interface principal.",
+                CatalogStartupTimeout,
+                async cancellationToken =>
+                {
+                    var store = host.Services.GetRequiredService<IFlowStore>();
+                    var contactDirectory = host.Services.GetRequiredService<IContactDirectory>();
+                    var automationsTask = store.GetAutomationsAsync(cancellationToken);
+                    var channelsTask = store.GetChannelConfigurationsAsync(cancellationToken);
+                    var contactsTask = contactDirectory.GetSnapshotAsync(cancellationToken);
+                    await Task.WhenAll(automationsTask, channelsTask, contactsTask).ConfigureAwait(false);
+                    return new StartupSnapshot(
+                        automationsTask.Result.Count,
+                        channelsTask.Result.Count,
+                        contactsTask.Result.Contacts.Count,
+                        contactsTask.Result.Groups.Count);
+                });
 
             splash?.UpdateStatus(
                 "Preparando a central de monitoramento",
-                96,
-                $"{automations.Count} automação(ões), {channels.Count} canal(is), {contacts.Contacts.Count} contato(s) e {contacts.Groups.Count} grupo(s) carregado(s).");
+                88,
+                $"{snapshot.AutomationCount} automação(ões), {snapshot.ChannelCount} canal(is), " +
+                $"{snapshot.ContactCount} contato(s) e {snapshot.GroupCount} grupo(s) carregado(s).");
+
+            // Os controles WinForms são construídos exclusivamente na thread STA principal.
             var context = host.Services.GetRequiredService<TrayApplicationContext>();
+
+            RunStartupStep(
+                splash,
+                startupLogger,
+                "Iniciando os processadores",
+                95,
+                "Ativando o agendador de automações e a fila de notificações em segundo plano.",
+                HostStartupTimeout,
+                cancellationToken => host.StartAsync(cancellationToken));
+            hostStarted = true;
 
             if (splash is not null)
             {
-                var minimumVisibility = TimeSpan.FromMilliseconds(2500);
-                var remaining = minimumVisibility - startupWatch.Elapsed;
+                var remaining = MinimumSplashVisibility - startupWatch.Elapsed;
                 if (remaining > TimeSpan.Zero)
                 {
-                    await Task.Delay(remaining);
+                    WaitWithMessagePump(Task.Delay(remaining), splash, null, remaining.Add(TimeSpan.FromSeconds(2)));
                 }
+
                 splash.UpdateStatus("FlowSentinel pronto", 100, "A central de monitoramento foi carregada com sucesso.");
-                await Task.Delay(300);
+                WaitWithMessagePump(Task.Delay(180), splash, null, TimeSpan.FromSeconds(2));
                 splash.Close();
                 splash.Dispose();
                 splash = null;
             }
 
+            // O message loop permanece na mesma thread STA que criou todos os formulários.
             System.Windows.Forms.Application.Run(context);
         }
         catch (Exception exception)
         {
+            startupLogger.LogError(exception, "Não foi possível concluir a inicialização do FlowSentinel.");
             splash?.Close();
             MessageBox.Show(
-                $"Não foi possível iniciar o FlowSentinel.\n\n{exception}",
+                "Não foi possível iniciar o FlowSentinel. A inicialização foi interrompida para evitar " +
+                "que a aplicação permanecesse travada indefinidamente.\n\n" +
+                $"{exception.Message}\n\nConsulte os logs em:\n{paths.LogDirectory}",
                 "Erro de inicialização",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
@@ -157,7 +207,113 @@ internal static class Program
         finally
         {
             splash?.Dispose();
-            await host.StopAsync(TimeSpan.FromSeconds(10));
+            if (hostStarted)
+            {
+                try
+                {
+                    using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                    host.StopAsync(shutdown.Token).GetAwaiter().GetResult();
+                }
+                catch (Exception exception)
+                {
+                    startupLogger.LogWarning(exception, "O host não encerrou dentro do prazo esperado.");
+                }
+            }
         }
     }
+
+    private static void RunStartupStep(
+        SplashForm? splash,
+        ILogger logger,
+        string stepName,
+        int progress,
+        string detail,
+        TimeSpan timeout,
+        Func<CancellationToken, Task> operation)
+    {
+        RunStartupStep<object?>(
+            splash,
+            logger,
+            stepName,
+            progress,
+            detail,
+            timeout,
+            async cancellationToken =>
+            {
+                await operation(cancellationToken).ConfigureAwait(false);
+                return null;
+            });
+    }
+
+    private static T RunStartupStep<T>(
+        SplashForm? splash,
+        ILogger logger,
+        string stepName,
+        int progress,
+        string detail,
+        TimeSpan timeout,
+        Func<CancellationToken, Task<T>> operation)
+    {
+        splash?.UpdateStatus(stepName, progress, detail);
+        var watch = Stopwatch.StartNew();
+        using var cancellation = new CancellationTokenSource();
+        var task = Task.Run(() => operation(cancellation.Token), cancellation.Token);
+
+        try
+        {
+            WaitWithMessagePump(task, splash, stepName, timeout, cancellation, watch);
+            var result = task.GetAwaiter().GetResult();
+            logger.LogInformation("Etapa de inicialização '{StartupStep}' concluída em {ElapsedMilliseconds} ms.",
+                stepName,
+                watch.ElapsedMilliseconds);
+            return result;
+        }
+        catch (OperationCanceledException) when (watch.Elapsed >= timeout)
+        {
+            throw new TimeoutException(
+                $"A etapa '{stepName}' excedeu o limite de {timeout.TotalSeconds:N0} segundos.");
+        }
+    }
+
+    private static void WaitWithMessagePump(
+        Task task,
+        SplashForm? splash,
+        string? stepName,
+        TimeSpan timeout,
+        CancellationTokenSource? cancellation = null,
+        Stopwatch? watch = null)
+    {
+        watch ??= Stopwatch.StartNew();
+        var lastProgressRefresh = TimeSpan.MinValue;
+
+        while (!task.IsCompleted)
+        {
+            System.Windows.Forms.Application.DoEvents();
+
+            if (watch.Elapsed - lastProgressRefresh >= TimeSpan.FromMilliseconds(250))
+            {
+                splash?.UpdateElapsed(stepName, watch.Elapsed, timeout);
+                lastProgressRefresh = watch.Elapsed;
+            }
+
+            if (watch.Elapsed >= timeout)
+            {
+                cancellation?.Cancel();
+                throw new TimeoutException(
+                    stepName is null
+                        ? $"A operação excedeu o limite de {timeout.TotalSeconds:N0} segundos."
+                        : $"A etapa '{stepName}' excedeu o limite de {timeout.TotalSeconds:N0} segundos.");
+            }
+
+            Thread.Sleep(15);
+        }
+
+        task.GetAwaiter().GetResult();
+    }
+
+    private sealed record StartupSnapshot(
+        int AutomationCount,
+        int ChannelCount,
+        int ContactCount,
+        int GroupCount);
 }

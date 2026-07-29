@@ -104,7 +104,7 @@ public sealed class FlowStoreSqliteTests
             await validationConnection.OpenAsync();
             await using var validationCommand = validationConnection.CreateCommand();
             validationCommand.CommandText = "PRAGMA user_version;";
-            Assert.Equal(5L, Convert.ToInt64(await validationCommand.ExecuteScalarAsync()));
+            Assert.Equal(6L, Convert.ToInt64(await validationCommand.ExecuteScalarAsync()));
         }
         finally
         {
@@ -572,6 +572,119 @@ public sealed class FlowStoreSqliteTests
             var claimed = await store.ClaimDueDeliveriesAsync(now.AddMinutes(1), 10, CancellationToken.None);
             Assert.DoesNotContain(claimed, x => x.Id == pendingDelivery.Id);
             Assert.Contains(claimed, x => x.Id == unrelatedDelivery.Id);
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            DeleteTemporaryRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task AtualizacaoDeveRemoverSomenteEstadosInativosSemHistorico()
+    {
+        var root = CreateTemporaryRoot();
+        var databasePath = Path.Combine(root, "data", "flowsentinel.db");
+        var definition = CreateAutomation("Limpeza de estados");
+        var occurrenceId = Guid.NewGuid();
+        var emptyActionId = Guid.NewGuid();
+        var activeActionId = Guid.NewGuid();
+        var now = DateTimeOffset.UtcNow;
+
+        try
+        {
+            await using (var provider = CreateProvider(root))
+            {
+                var store = provider.GetRequiredService<IFlowStore>();
+                await store.InitializeAsync(CancellationToken.None);
+                await store.SaveAutomationAsync(definition, CancellationToken.None);
+                await store.CreateOccurrenceAsync(new OccurrenceStoreItem
+                {
+                    Id = occurrenceId,
+                    AutomationId = definition.Id,
+                    RecordKey = "REGISTRO-1",
+                    Status = OccurrenceStatus.Active,
+                    OpenedAt = now,
+                    LastEvaluatedAt = now,
+                    Snapshot = new Dictionary<string, string?> { ["Status"] = "P" },
+                    Fingerprint = "P"
+                }, CancellationToken.None);
+
+                await store.UpdateActionConditionStateAsync(
+                    occurrenceId, emptyActionId, false, false, now, CancellationToken.None);
+                await store.UpdateActionConditionStateAsync(
+                    occurrenceId, activeActionId, true, true, now, CancellationToken.None);
+            }
+
+            await using (var connection = new SqliteConnection($"Data Source={databasePath};Pooling=False"))
+            {
+                await connection.OpenAsync();
+                await using var command = connection.CreateCommand();
+                command.CommandText = "PRAGMA user_version = 5;";
+                await command.ExecuteNonQueryAsync();
+            }
+
+            await using (var provider = CreateProvider(root))
+            {
+                var store = provider.GetRequiredService<IFlowStore>();
+                await store.InitializeAsync(CancellationToken.None);
+                var states = await store.GetActionScheduleStatesAsync(definition.Id, CancellationToken.None);
+
+                var remaining = Assert.Single(states);
+                Assert.Equal(activeActionId, remaining.ActionId);
+                Assert.True(remaining.State.ConditionActive);
+            }
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            DeleteTemporaryRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task AtualizacaoDeAvaliacaoDasOcorrenciasDeveSerAgrupadaPorJanela()
+    {
+        var root = CreateTemporaryRoot();
+        var definition = CreateAutomation("Heartbeat agrupado");
+        var occurrenceId = Guid.NewGuid();
+        var firstEvaluation = DateTimeOffset.UtcNow.AddHours(-1);
+        var refreshedAt = DateTimeOffset.UtcNow;
+
+        try
+        {
+            await using var provider = CreateProvider(root);
+            var store = provider.GetRequiredService<IFlowStore>();
+            await store.InitializeAsync(CancellationToken.None);
+            await store.SaveAutomationAsync(definition, CancellationToken.None);
+            await store.CreateOccurrenceAsync(new OccurrenceStoreItem
+            {
+                Id = occurrenceId,
+                AutomationId = definition.Id,
+                RecordKey = "REGISTRO-1",
+                Status = OccurrenceStatus.Active,
+                OpenedAt = firstEvaluation,
+                LastEvaluatedAt = firstEvaluation,
+                Snapshot = new Dictionary<string, string?> { ["Status"] = "P" },
+                Fingerprint = "P"
+            }, CancellationToken.None);
+
+            await store.MarkOpenOccurrencesEvaluatedAsync(
+                definition.Id, refreshedAt, CancellationToken.None);
+            await store.MarkOpenOccurrencesEvaluatedAsync(
+                definition.Id, refreshedAt.AddMinutes(1), CancellationToken.None);
+
+            var afterOneMinute = Assert.Single(
+                await store.GetOpenOccurrencesAsync(definition.Id, CancellationToken.None));
+            Assert.Equal(refreshedAt.ToUnixTimeMilliseconds(), afterOneMinute.LastEvaluatedAt.ToUnixTimeMilliseconds());
+
+            await store.MarkOpenOccurrencesEvaluatedAsync(
+                definition.Id, refreshedAt.AddMinutes(6), CancellationToken.None);
+            var afterSixMinutes = Assert.Single(
+                await store.GetOpenOccurrencesAsync(definition.Id, CancellationToken.None));
+            Assert.Equal(
+                refreshedAt.AddMinutes(6).ToUnixTimeMilliseconds(),
+                afterSixMinutes.LastEvaluatedAt.ToUnixTimeMilliseconds());
         }
         finally
         {
